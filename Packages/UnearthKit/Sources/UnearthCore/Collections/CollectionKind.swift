@@ -16,6 +16,20 @@ public enum CollectionKind: String, CaseIterable, Sendable, Codable {
         }
     }
 
+    /// What's in the collection, counted: "12 duplicates".
+    public func counted(_ count: Int) -> String {
+        let name: (one: String, many: String) = switch self {
+        case .duplicates: ("duplicate", "duplicates")
+        case .lookAlikes: ("photo", "photos")
+        case .forgottenDownloads: ("forgotten download", "forgotten downloads")
+        case .oldInstallers: ("old installer", "old installers")
+        case .oldScreenshots: ("old screenshot", "old screenshots")
+        case .bigOldVideos: ("big old video", "big old videos")
+        case .unusedApps: ("app", "apps")
+        }
+        return "\(count.formatted()) \(count == 1 ? name.one : name.many)"
+    }
+
     public var explanation: Explanation {
         switch self {
         case .duplicates:

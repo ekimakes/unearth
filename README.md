@@ -6,7 +6,7 @@
 The free Mac app that shows what's filling your disk and helps you clear it.<br>
 Nothing ever leaves your Mac.</p>
 
-<p align="center"><a href="https://github.com/ekimakes/unearth/releases/latest/download/Unearth.dmg"><strong>Download for Mac</strong></a> · <a href="https://ekimakes.github.io/unearth/">Website</a> · Requires macOS 15 or later</p>
+<p align="center"><a href="https://github.com/ekimakes/unearth/releases/latest/download/Unearth.dmg"><strong>Download for Mac</strong></a> · <a href="https://useunearth.com/">Website</a> · Requires macOS 15 or later</p>
 
 ![Unearth in use: a search finds every mountain photo, three folders get ticked for the Trash, and Storage shows what's safe to remove](website/assets/hero.webp)
 

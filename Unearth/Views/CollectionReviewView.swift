@@ -89,6 +89,9 @@ struct CollectionReviewView: View {
         } else {
             (groups, selection) = DuplicateGroup.merge(model.collections.duplicates, keeping: groups, selection: selection)
         }
+        #if DEBUG
+        TimelineProbe.duplicateGroupsOnPage = groups.count
+        #endif
     }
 }
 

@@ -78,13 +78,14 @@ struct CleanupResultBanner: View {
         }
         if outcome.entries.isEmpty { return "Nothing was moved." }
         let size = ByteFormatting.string(outcome.bytesMovedToTrash)
-        return model.options.dryRun ? "Dry run: \(size) would have moved to the Trash." : "Moved \(size) to the Trash."
+        if model.options.dryRun { return "Dry run: \(size) would have moved to the Trash." }
+        return model.lastRemoved ?? "Moved \(size) to the Trash."
     }
 
     private var detail: String? {
         if toolRun != nil { return toolRun?.state == .completed ? "This was permanent, so it isn't in the Trash." : nil }
         if inTrash.isEmpty { return model.options.dryRun ? "Nothing was touched." : nil }
-        return "Empty the Trash to get the space back."
+        return CleanupMessage.detail(bytes: outcome.bytesMovedToTrash)
     }
 }
 

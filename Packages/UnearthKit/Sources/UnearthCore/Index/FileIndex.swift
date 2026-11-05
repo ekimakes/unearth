@@ -324,10 +324,16 @@ public actor FileIndex {
         }
     }
 
+    /// Forgets these paths; a folder goes with everything that was in it.
     public func remove(paths: [String]) throws {
         let remove = try statement("DELETE FROM files WHERE path = ?1")
+        let removeInside = try statement("DELETE FROM files WHERE path > ?1 AND path < ?2")
         try db.transaction {
-            for path in paths { try remove.run([.text(path)]) }
+            for path in paths {
+                try remove.run([.text(path)])
+                let (low, high) = Self.range(under: path)
+                try removeInside.run([.text(low), .text(high)])
+            }
         }
     }
 

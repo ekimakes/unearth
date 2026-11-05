@@ -23,7 +23,7 @@ The number next to the button is GitHub's own count. On load, the page asks `htt
 ## What to change
 
 - **The repository or the file name:** the `RELEASE` const at the top of the script in `index.html`. Every release must attach a file with exactly that name, because the button links to `releases/latest/download/<file>`. The `href` values written in the HTML are only for visitors without JavaScript.
-- **The site's address:** the `og:image` meta tag needs a full URL. It assumes GitHub Pages at `ekimakes.github.io/unearth`.
+- **The site's address:** the `og:image` meta tag needs a full URL. It's `useunearth.com`, the custom domain set in the repository's Pages settings.
 
 ## The pictures
 

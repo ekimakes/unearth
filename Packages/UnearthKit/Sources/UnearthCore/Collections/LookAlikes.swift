@@ -7,6 +7,14 @@ public struct LookAlikeGroup: Sendable, Identifiable, Equatable {
     public let files: [IndexedFile]
     /// The best shot, as Vision's aesthetics score sees it.
     public let best: IndexedFile.ID
+
+    /// This group without the photos `isGone` picks out, or nil when fewer than two are left. If the best shot is one
+    /// of them, the first photo left stands in until the next look scores them.
+    public func without(_ isGone: (IndexedFile) -> Bool) -> LookAlikeGroup? {
+        let left = files.filter { !isGone($0) }
+        guard left.count > 1 else { return nil }
+        return LookAlikeGroup(id: id, files: left, best: left.contains { $0.id == best } ? best : left[0].id)
+    }
 }
 
 /// Groups the Library's photos with their feature prints. Nothing is selected for the user.

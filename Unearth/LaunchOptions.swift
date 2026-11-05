@@ -27,6 +27,9 @@ struct LaunchOptions {
     var openCheck = false
     /// With a snapshot directory: tick folder tiles through the real window, and quit.
     var overviewCheck = false
+    /// With a snapshot directory: move things to the Trash with their pages open, time how soon they leave, and quit.
+    /// Refused unless the sample disk is on a volume of its own, so nothing reaches the real Trash.
+    var removalCheck = false
     /// After each scan, write its numbers here as JSON (for checking a real-disk run).
     var reportFile: String?
 
@@ -47,6 +50,7 @@ struct LaunchOptions {
         options.trashCheck = flag("UnearthTrashCheck")
         options.openCheck = flag("UnearthOpenCheck")
         options.overviewCheck = flag("UnearthOverviewCheck")
+        options.removalCheck = flag("UnearthRemovalCheck")
         options.reportFile = text("UnearthReportFile")
         #endif
         return options

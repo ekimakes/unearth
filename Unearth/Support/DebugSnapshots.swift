@@ -31,6 +31,11 @@ enum DebugSnapshots {
             NSApp.terminate(nil)
             return
         }
+        if model.options.removalCheck {
+            await checkRemoval(model, directory: directory)
+            NSApp.terminate(nil)
+            return
+        }
         if model.options.scanRoot != nil {
             // The demo disk's files are small and new, so loosen the Large & Old Files filters (not saved).
             model.settings.largeFileThreshold = 50_000_000
@@ -488,6 +493,164 @@ enum DebugSnapshots {
         } catch {
             note("real Trash: \(error.localizedDescription)")
         }
+    }
+
+    /// Moves things to the Trash with their page open, the way the confirmation's button does, writing how long they
+    /// stayed listed and saving the window at each step; then Undo. Only on a sample disk on a volume of its own, so
+    /// nothing reaches the real Trash.
+    private static func checkRemoval(_ model: AppModel, directory: String) async {
+        var report = ""
+        func note(_ line: String) {
+            report += line + "\n"
+            try? report.write(toFile: Paths.join(directory, "removal-check.txt"), atomically: true, encoding: .utf8)
+        }
+        func device(_ path: String) -> dev_t? {
+            var info = stat()
+            return lstat(path, &info) == 0 ? info.st_dev : nil
+        }
+        guard let root = model.options.scanRoot, !model.options.dryRun, let disk = device(root), disk != device(NSHomeDirectory()) else {
+            note("Refused: only on a sample disk on a volume of its own, outside safe mode.")
+            return
+        }
+        let clock = ContinuousClock()
+        func waitUntil(_ limit: Duration, _ done: () -> Bool) async {
+            let end = clock.now + limit
+            while !done(), clock.now < end { try? await Task.sleep(for: .milliseconds(5)) }
+        }
+        func picture(_ name: String) {
+            guard let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeKey }), let view = window.contentView,
+                  let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
+            view.cacheDisplay(in: view.bounds, to: bitmap)
+            try? bitmap.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: Paths.join(directory, name + ".png")))
+        }
+
+        await waitUntil(.seconds(240)) { model.library.status == .ready }
+        model.collections.settings.bigVideoBytes = 1_000_000
+        model.collections.settings.bigVideoDays = 0
+        model.collections.settings.duplicateMinBytes = 10_000
+        model.refreshCollections()
+        await model.collections.waitUntilLooked()
+
+        /// Waits out the scan and the look that follow a move.
+        func settle() async {
+            await waitUntil(.seconds(60)) { !model.isScanning && !model.isRefreshing }
+            await model.collections.waitUntilLooked()
+        }
+        /// Runs `move`, then writes how much was still listed at its result, how soon nothing was, and the message.
+        func timed(_ name: String, _ move: @escaping @MainActor () async -> Void, listed: () -> Int) async {
+            let before = listed()
+            model.lastOutcome = nil
+            let start = clock.now
+            Task { await move() }
+            await waitUntil(.seconds(30)) { model.lastOutcome != nil }
+            let atResult = listed()
+            await waitUntil(.seconds(30)) { listed() == 0 }
+            note("\(name): \(before) listed, \(atResult) at the result, none after \(clock.now - start). Says: \(model.lastRemoved ?? "nothing")")
+        }
+        func exists(_ path: String) -> Bool { FileManager.default.fileExists(atPath: path) }
+
+        model.sidebarSelection = .collection(.duplicates)
+        try? await Task.sleep(for: .seconds(1))
+        picture("duplicates-1-before")
+        let groups = model.collections.duplicates
+        let picked = groups.flatMap { $0.trashable($0.defaultSelection(), exists: exists) }
+        let paths = Set(picked.map(\.path))
+        func listed() -> Int { model.collections.duplicates.flatMap(\.files).filter { paths.contains($0.path) }.count }
+        note("Duplicates: \(groups.count) groups on the page: \(TimelineProbe.duplicateGroupsOnPage)")
+        await timed("Duplicates", { await model.trash(collection: .duplicates, files: picked) }, listed: listed)
+        try? await Task.sleep(for: .milliseconds(200))
+        picture("duplicates-2-gone")
+        note("groups on the page: \(TimelineProbe.duplicateGroupsOnPage), the card says \(model.collections.summaries[.duplicates]?.count ?? -1)")
+
+        let undone = clock.now
+        await model.undoLastCleanup()
+        note("Undo: \(listed()) of \(picked.count) back once it returned, after \(clock.now - undone)")
+        await waitUntil(.seconds(60)) { TimelineProbe.duplicateGroupsOnPage == groups.count }
+        note("groups on the page \(clock.now - undone) after Undo: \(TimelineProbe.duplicateGroupsOnPage)")
+        picture("duplicates-3-undone")
+        await settle()
+        note("Undo settled: \(model.collections.duplicates.count) groups, \(listed()) of \(picked.count) listed")
+
+        // A look-alike, with the page open.
+        model.sidebarSelection = .collection(.lookAlikes)
+        try? await Task.sleep(for: .milliseconds(300))
+        if let photo = model.collections.lookAlikes.first?.files.last {
+            await timed("Look-alikes", { await model.trash(collection: .lookAlikes, files: [photo]) }, listed: {
+                model.collections.lookAlikes.flatMap(\.files).filter { $0.path == photo.path }.count
+            })
+        } else {
+            note("Look-alikes: none found")
+        }
+        await settle()
+
+        // A list, two at once.
+        model.sidebarSelection = .collection(.oldScreenshots)
+        try? await Task.sleep(for: .milliseconds(300))
+        let shots = model.collections.files[.oldScreenshots] ?? []
+        if !shots.isEmpty {
+            await timed("Old screenshots", { await model.trash(collection: .oldScreenshots, files: shots) }, listed: {
+                (model.collections.files[.oldScreenshots] ?? []).count
+            })
+            note("its card says \(model.collections.summaries[.oldScreenshots]?.count ?? -1)")
+        } else {
+            note("Old screenshots: none found")
+        }
+        await settle()
+
+        // A picture from the Library, with its timeline on screen.
+        TimelineProbe.opensEveryFile = true
+        model.sidebarSelection = .kind(.image)
+        await waitUntil(.seconds(30)) { TimelineProbe.timeline?.count ?? 0 > 0 }
+        if let timeline = TimelineProbe.timeline, let image = await timeline.allFiles().last {
+            let before = timeline.count
+            await timed("Timeline", { await model.moveFilesToTrash([image]) }, listed: { timeline.count > before - 1 ? 1 : 0 })
+        }
+        await settle()
+
+        // A folder from the Disk Map, then one after a running scan went past it: holding the finished scan back makes
+        // that certain.
+        model.sidebarSelection = .diskMap
+        try? await Task.sleep(for: .milliseconds(300))
+        func folder(_ path: String) -> CleanupItem {
+            .picked(path: path, bytes: model.tree?.node(atPath: path)?.totalBytes ?? 0, what: "A folder from the check.")
+        }
+        let (first, second) = ("/Users/demo/Pictures/Beach", "/Users/demo/Documents/Thesis")
+        await timed("Disk Map folder", { await model.moveToTrash([folder(first)]) }, listed: {
+            model.tree?.node(atPath: first) == nil ? 0 : 1
+        })
+        await settle()
+        TimelineProbe.holdsScans = true
+        Task { await model.startScan() }
+        await waitUntil(.seconds(30)) { TimelineProbe.heldScan != nil }
+        await timed("Folder behind a running scan", { await model.moveToTrash([folder(second)]) }, listed: {
+            model.tree?.node(atPath: second) == nil ? 0 : 1
+        })
+        TimelineProbe.holdsScans = false
+        TimelineProbe.heldScan?.resume()
+        TimelineProbe.heldScan = nil
+        var cameBack = false
+        await waitUntil(.seconds(3)) {
+            cameBack = cameBack || model.tree?.node(atPath: first) != nil || model.tree?.node(atPath: second) != nil
+            return false
+        }
+        note("came back when the scan finished: \(cameBack)")
+        await settle()
+        note("left in the Library under them: \(await model.library.search(SearchQuery.parse("Beach", now: Date())).count)")
+        let (beach, music) = (exists(Paths.join(root, String(first.dropFirst()))), exists(Paths.join(root, String(second.dropFirst()))))
+        note("on disk afterwards: \(beach), \(music)")
+
+        // An app, with what it keeps.
+        model.sidebarSelection = .collection(.unusedApps)
+        try? await Task.sleep(for: .milliseconds(300))
+        if let app = model.collections.apps.first(where: { $0.vendorFolder == nil && !$0.isApple }) {
+            await timed("Unused app", { await model.uninstall(app) }, listed: {
+                model.collections.apps.filter { $0.path == app.path }.count
+            })
+        } else {
+            note("Unused app: none found")
+        }
+        await settle()
+        note("failures left: \(model.lastFailures.map(\.reason))")
     }
 
     /// Jumps through the timeline on screen and sweeps down all of it, writing down where it landed, how soon the
@@ -1005,6 +1168,11 @@ enum TimelineProbe {
     static var overviewTimeline: Timeline?
     static var overviewSelection: (() -> Set<Int64>)?
     static var clearOverviewSelection: (() -> Void)?
+    /// How many groups Duplicates' page has.
+    static var duplicateGroupsOnPage = 0
+    /// A finished scan waits here before it goes on screen, so a check can move something behind its back.
+    static var holdsScans = false
+    static var heldScan: CheckedContinuation<Void, Never>?
     private(set) static var metrics: TimelineMetrics?
     private(set) static var frame: (() -> CGRect)?
     private(set) static var selection: (() -> Set<Int64>)?

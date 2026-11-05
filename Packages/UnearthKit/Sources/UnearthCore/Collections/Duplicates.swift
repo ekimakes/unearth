@@ -143,6 +143,21 @@ public struct DuplicateGroup: Sendable, Identifiable, Equatable {
         family = families
     }
 
+    private init(id: String, files: [IndexedFile], keep: IndexedFile.ID, family: [IndexedFile.ID: Int]) {
+        self.id = id
+        self.files = files
+        self.keep = keep
+        self.family = family
+    }
+
+    /// This group without the copies `isGone` picks out, or nil when that leaves nothing to choose between. If the
+    /// kept copy is one of them, the first copy left is kept instead.
+    public func without(_ isGone: (IndexedFile) -> Bool) -> DuplicateGroup? {
+        let left = files.filter { !isGone($0) }
+        guard left.count > 1 else { return nil }
+        return DuplicateGroup(id: id, files: left, keep: left.contains { $0.id == keep } ? keep : left[0].id, family: family)
+    }
+
     /// Copies that share storage with the kept one: moving them to the Trash frees nothing.
     public var clones: Set<IndexedFile.ID> {
         Set(files.lazy.map(\.id).filter { $0 != keep && family[$0] == family[keep] })

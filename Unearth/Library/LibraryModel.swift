@@ -46,6 +46,8 @@ final class LibraryModel {
     @ObservationIgnored private var changedFolders: Set<String> = []
     @ObservationIgnored private var refreshQueued = false
     @ObservationIgnored private var fullPassQueued = false
+    @ObservationIgnored private var isReloadingSummaries = false
+    @ObservationIgnored private var reloadSummariesAgain = false
 
     init(databaseURL: URL) {
         index = try? FileIndex(url: databaseURL)
@@ -156,6 +158,15 @@ final class LibraryModel {
         foldersChanged(Array(Set(files.map(\.parent))))
     }
 
+    /// Forgets what an action just took off the disk, a folder with all it held, without waiting for other index
+    /// work, so every screen loses it now. Listing its folders afterwards settles anything a running pass wrote back.
+    func remove(_ paths: [String]) async {
+        guard let index else { return }
+        try? await index.remove(paths: paths)
+        await reloadSummaries()
+        foldersChanged(Array(Set(paths.map { ($0 as NSString).deletingLastPathComponent })))
+    }
+
     /// Settings › Privacy › Forget everything. Work in progress is stopped and waited for first, so nothing
     /// writes into the emptied index; it's built again the next time Unearth opens.
     func forget() async {
@@ -205,7 +216,21 @@ final class LibraryModel {
         }
     }
 
+    /// One at a time, so a pass that began before a removal can't finish after the one that follows it.
     func reloadSummaries() async {
+        guard !isReloadingSummaries else {
+            reloadSummariesAgain = true
+            return
+        }
+        isReloadingSummaries = true
+        repeat {
+            reloadSummariesAgain = false
+            await loadSummaries()
+        } while reloadSummariesAgain
+        isReloadingSummaries = false
+    }
+
+    private func loadSummaries() async {
         guard let index else { return }
         kinds = await index.kindSummaries()
         sources = await index.sourceSummaries()

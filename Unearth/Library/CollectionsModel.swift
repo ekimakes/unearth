@@ -62,6 +62,12 @@ final class CollectionsModel {
     @ObservationIgnored private var lookAgain = false
     /// A look waiting for the Library to settle.
     @ObservationIgnored private var waiting: Task<Void, Never>?
+    /// What the looks found, before taking out what has left the disk since.
+    @ObservationIgnored private var foundLists: [CollectionKind: [IndexedFile]] = [:]
+    @ObservationIgnored private var foundApps: (unused: [InstalledApp], undated: [InstalledApp]) = ([], [])
+    @ObservationIgnored private var foundDuplicates: [DuplicateGroup] = []
+    /// What left the disk. A look under way may still find it, so it stays off the collections until it's back.
+    @ObservationIgnored private var removed = RemovedPaths()
     /// What the last look saw, to tell what the next one must redo.
     @ObservationIgnored private var lastState: CollectionsState?
     /// Look-alike groups before exact copies are taken out, kept for when only the duplicates change.
@@ -124,7 +130,24 @@ final class CollectionsModel {
         undatedApps = []
         hasLooked = false
         lastState = nil
+        foundLists = [:]
+        foundApps = ([], [])
+        foundDuplicates = []
         foundLookAlikes = []
+        removed = RemovedPaths()
+    }
+
+    /// Takes what just left the disk off every collection, so it's gone from their pages now: the next look can be
+    /// minutes away.
+    func remove(paths: [String]) {
+        removed.insert(contentsOf: paths)
+        showEverything()
+    }
+
+    /// Puts back what Undo returned to the disk, as the last look found it.
+    func restore(paths: [String]) {
+        removed.forget(paths)
+        showEverything()
     }
 
     private func requestRefresh() {
@@ -166,6 +189,10 @@ final class CollectionsModel {
             scan: context.scan, duplicates: await context.index.duplicatesFingerprint(minBytes: settings.duplicateMinBytes),
             photos: await context.index.lookAlikesFingerprint(), settings: settings)
         let work = CollectionsWork.needed(since: lastState, now: current)
+        // Anything back on disk counts again, however it got there.
+        let known = removed.paths
+        let back = await Task.detached(priority: .utility) { known.filter { FileManager.default.fileExists(atPath: $0) } }.value
+        removed.forget(back)
 
         let lists = await Task.detached(priority: .utility) {
             let queries = CollectionQueries(index: context.index, downloads: context.downloads, settings: settings, now: now,
@@ -178,10 +205,8 @@ final class CollectionsModel {
         }.value
         guard !Task.isCancelled else { return }
         lap("lists")
-        files = lists
-        for (kind, list) in lists {
-            summaries[kind] = Summary(count: list.count, bytes: list.reduce(0) { $0 + $1.bytes }, preview: Array(list.prefix(3)))
-        }
+        foundLists = lists
+        showLists()
 
         if work.apps {
             // Listing every app and sizing it walks every bundle: once per disk scan, not per Library change.
@@ -193,9 +218,8 @@ final class CollectionsModel {
             }.value
             guard !Task.isCancelled else { return }
             lap("apps")
-            apps = unused
-            undatedApps = undated
-            summaries[.unusedApps] = Summary(count: unused.count, bytes: unused.reduce(0) { $0 + $1.movableBytes }, preview: [])
+            foundApps = (unused, undated)
+            showApps()
         }
 
         if work.duplicates {
@@ -205,10 +229,8 @@ final class CollectionsModel {
             }.value
             guard !Task.isCancelled else { return }
             lap("duplicates")
-            duplicates = groups
-            summaries[.duplicates] = Summary(
-                count: groups.reduce(0) { $0 + $1.defaultSelection().count }, bytes: groups.reduce(0) { $0 + $1.extraBytes },
-                preview: groups.prefix(3).map { $0.files[0] })
+            foundDuplicates = groups
+            showDuplicates()
         }
 
         if work.lookAlikes {
@@ -220,16 +242,53 @@ final class CollectionsModel {
             foundLookAlikes = found
         }
         if work.lookAlikes || work.duplicates {
-            let alike = Self.withoutCopies(foundLookAlikes, duplicates: duplicates)
-            lookAlikes = alike
-            summaries[.lookAlikes] = Summary(
-                count: alike.count,
-                bytes: alike.reduce(0) { total, group in total + group.files.filter { $0.id != group.best }.reduce(0) { $0 + $1.bytes } },
-                preview: alike.prefix(3).compactMap { group in group.files.first { $0.id == group.best } })
+            showLookAlikes()
         }
         lastState = current
         hasLooked = true
         onLooked?()
+    }
+
+    // MARK: - On show
+
+    private func isGone(_ file: IndexedFile) -> Bool { removed.covers(file.path) }
+
+    /// What no look has found yet has nothing to show; the look that finds it leaves out what's gone.
+    private func showEverything() {
+        showLists()
+        if summaries[.unusedApps] != nil { showApps() }
+        if summaries[.duplicates] != nil { showDuplicates() }
+        if summaries[.lookAlikes] != nil { showLookAlikes() }
+    }
+
+    private func showLists() {
+        files = foundLists.mapValues { $0.filter { !isGone($0) } }
+        for (kind, list) in files {
+            summaries[kind] = Summary(count: list.count, bytes: list.reduce(0) { $0 + $1.bytes }, preview: Array(list.prefix(3)))
+        }
+    }
+
+    private func showApps() {
+        apps = foundApps.unused.filter { !removed.covers($0.path) }
+        undatedApps = foundApps.undated.filter { !removed.covers($0.path) }
+        summaries[.unusedApps] = Summary(count: apps.count, bytes: apps.reduce(0) { $0 + $1.movableBytes }, preview: [])
+    }
+
+    private func showDuplicates() {
+        let groups = foundDuplicates.compactMap { $0.without(isGone) }
+        duplicates = groups
+        summaries[.duplicates] = Summary(
+            count: groups.reduce(0) { $0 + $1.defaultSelection().count }, bytes: groups.reduce(0) { $0 + $1.extraBytes },
+            preview: groups.prefix(3).map { $0.files[0] })
+    }
+
+    private func showLookAlikes() {
+        let alike = Self.withoutCopies(foundLookAlikes, duplicates: duplicates).compactMap { $0.without(isGone) }
+        lookAlikes = alike
+        summaries[.lookAlikes] = Summary(
+            count: alike.count,
+            bytes: alike.reduce(0) { total, group in total + group.files.filter { $0.id != group.best }.reduce(0) { $0 + $1.bytes } },
+            preview: alike.prefix(3).compactMap { group in group.files.first { $0.id == group.best } })
     }
 }
 

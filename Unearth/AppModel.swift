@@ -50,6 +50,8 @@ final class AppModel {
     var plan: CleanupPlan?
     var selection: Set<CleanupItem.ID> = []
     var lastOutcome: CleanupOutcome?
+    /// What the result banner calls what moved: "Removed 12 duplicates".
+    private(set) var lastRemoved: String?
     var lastFailures: [CleanupFailure] = []
     /// Files on their way to the Trash, while any are.
     private(set) var trashProgress: TrashProgress?
@@ -78,6 +80,8 @@ final class AppModel {
     @ObservationIgnored private var libraryStarted = false
     /// The disk changed during a scan, so another follows it.
     @ObservationIgnored private var scanAgain = false
+    /// What moved while a scan was running: that scan may have seen it, so it's taken out of what the scan found.
+    @ObservationIgnored private var movedDuringScan: [(path: String, bytes: Int64)] = []
 
     private let runner = ProcessCommandRunner()
     /// Moves an app installed for all users through the macOS password prompt; typing a password can take a while.
@@ -146,6 +150,7 @@ final class AppModel {
             return
         }
         hasFullDiskAccess = FullDiskAccess.isGranted()
+        movedDuringScan = []
         // With results on screen the scan runs behind them: nothing waits for it, and it gives way to everything else.
         let quiet = tree != nil
         if quiet {
@@ -165,7 +170,10 @@ final class AppModel {
                     self.phase = .scanning(progress)
                 }
             }
-            await show(tree)
+            #if DEBUG
+            if TimelineProbe.holdsScans { await withCheckedContinuation { TimelineProbe.heldScan = $0 } }
+            #endif
+            await show(movedDuringScan.isEmpty ? tree : tree.removing(displayed(movedDuringScan)))
             if !scanAgain { save(tree) }
             #if DEBUG
             writeReport()
@@ -389,9 +397,8 @@ final class AppModel {
         await afterCleanup()
     }
 
-    /// Moves items to the Trash with their progress on screen. What moved leaves the plan right away, since the
-    /// scan that follows takes a while.
-    private func move(_ items: [CleanupItem]) async {
+    /// Moves items to the Trash with their progress on screen. `kind` says what to call them afterwards.
+    private func move(_ items: [CleanupItem], kind: CollectionKind? = nil) async {
         trashProgress = TrashProgress(done: 0, total: items.count)
         let step = max(1, items.count / 100)
         let outcome = await makeEngine().moveToTrash(items) { [weak self] done in
@@ -399,12 +406,41 @@ final class AppModel {
             Task { @MainActor in self?.trashProgress?.done = done }
         }
         trashProgress = nil
+        let moved = Set(outcome.entries.filter { $0.state == .inTrash }.compactMap(\.originalPath))
+        await report(outcome, removed: items.filter { !moved.isDisjoint(with: $0.paths) }.map(\.title), kind: kind)
+    }
+
+    /// Says what happened, and takes what moved off every screen right away: the looks and the scan that follow can
+    /// take minutes. `titles` has one title for each thing the user picked that moved.
+    private func report(_ outcome: CleanupOutcome, removed titles: [String], kind: CollectionKind? = nil) async {
         lastOutcome = outcome
         lastFailures = outcome.failures
-        let moved = Set(outcome.entries.filter { $0.state == .inTrash }.compactMap(\.originalPath))
-        if let plan, !moved.isEmpty {
-            self.plan = CleanupPlan(items: plan.items.filter { !$0.paths.allSatisfy { moved.contains(realPath($0)) } })
+        lastRemoved = titles.isEmpty ? nil : CleanupMessage.removed(titles, kind: kind)
+        let moved = outcome.entries.filter { $0.state == .inTrash }.compactMap { entry in
+            entry.originalPath.map { (path: $0, bytes: entry.bytes) }
         }
+        guard !moved.isEmpty else { return }
+        let paths = moved.map(\.path)
+        if let plan {
+            var gone = RemovedPaths()
+            gone.insert(contentsOf: paths)
+            self.plan = CleanupPlan(items: plan.items.filter { !$0.paths.allSatisfy { gone.covers(realPath($0)) } })
+        }
+        collections.remove(paths: paths)
+        if isScanning || isRefreshing { movedDuringScan += moved }
+        if let tree {
+            let shown = displayed(moved)
+            let smaller = await Task.detached { tree.removing(shown) }.value
+            // A scan that finished meanwhile knows better.
+            if self.tree === tree { self.tree = smaller }
+        }
+        await library.remove(paths)
+    }
+
+    /// Scan trees speak display paths.
+    private func displayed(_ moved: [(path: String, bytes: Int64)]) -> [(path: String, bytes: Int64)] {
+        guard let root = options.scanRoot else { return moved }
+        return moved.map { (path: $0.path.hasPrefix(root + "/") ? String($0.path.dropFirst(root.count)) : $0.path, bytes: $0.bytes) }
     }
 
     // MARK: - Acting on Library files
@@ -493,25 +529,44 @@ final class AppModel {
             }
         }.value
         await move(items)
-        library.refresh(Array(Set(files.map(\.parent))))
         await afterCleanup()
     }
 
     func runTool(_ item: CleanupItem) async {
-        lastOutcome = await makeEngine().runTool(item)
-        lastFailures = lastOutcome?.failures ?? []
+        let outcome = await makeEngine().runTool(item)
+        lastOutcome = outcome
+        lastFailures = outcome.failures
+        // A finished tool did its cleaning; the scan that follows shows whatever it left.
+        if !options.dryRun, outcome.failures.isEmpty, let plan {
+            self.plan = CleanupPlan(items: plan.items.filter { $0.id != item.id })
+        }
         await afterCleanup()
     }
 
     func undoLastCleanup() async {
         guard let outcome = lastOutcome else { return }
-        lastFailures = await makeEngine().undo(outcome.entries.filter { $0.state == .inTrash }.map(\.id))
+        let entries = outcome.entries.filter { $0.state == .inTrash }
+        lastFailures = await makeEngine().undo(entries.map(\.id))
         lastOutcome = nil
-        await afterCleanup()
+        await afterUndo(entries)
     }
 
     func undo(_ ids: [UUID]) async {
+        let entries = history.filter { ids.contains($0.id) }
         lastFailures = await makeEngine().undo(ids)
+        await afterUndo(entries)
+    }
+
+    /// What came back is on the collections' pages at once. Its folders are listed again ahead of the scan, and the
+    /// collections look at what that finds.
+    private func afterUndo(_ entries: [HistoryEntry]) async {
+        let paths = entries.compactMap(\.originalPath)
+        collections.restore(paths: paths.filter { FileManager.default.fileExists(atPath: $0) })
+        let folders = Array(Set(paths.map { ($0 as NSString).deletingLastPathComponent }))
+        Task {
+            await library.refreshAndWait(folders)
+            refreshCollections()
+        }
         await afterCleanup()
     }
 
@@ -558,8 +613,7 @@ final class AppModel {
         }
         let chosen = files
         let items = await Task.detached { chosen.map { collection.item(for: $0, onDiskBytes: DiskUsage.onDisk($0.path)) } }.value
-        await move(items)
-        library.refresh(Array(Set(files.map(\.parent))))
+        await move(items, kind: collection)
         await afterCleanup()
     }
 
@@ -573,8 +627,9 @@ final class AppModel {
                                      uninstalling: Uninstall.exception(for: app, home: home)),
             trash: UninstallTrash(appPath: app.path, home: home, base: SystemTrash(admin: adminMover, home: home), admin: adminMover),
             runner: runner, history: historyStore, dryRun: options.dryRun, isRunning: RunningApps.isRunning)
-        lastOutcome = await Uninstall.perform(items, engine: engine)
-        lastFailures = lastOutcome?.failures ?? []
+        let outcome = await Uninstall.perform(items, engine: engine)
+        let moved = outcome.entries.contains { $0.originalPath == app.path && $0.state == .inTrash }
+        await report(outcome, removed: moved ? [app.name] : [])
         await afterCleanup()
     }
 

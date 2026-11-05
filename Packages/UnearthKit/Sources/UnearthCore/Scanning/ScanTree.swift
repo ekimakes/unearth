@@ -131,4 +131,57 @@ public final class ScanTree: Sendable, Identifiable {
         if let exact = children.first(where: { nodes[Int($0.raw)].name == name }) { return exact }
         return children.first { Paths.isSameOrInside("/" + nodes[Int($0.raw)].name, "/" + name) }
     }
+
+    /// This tree with what just left the disk taken out, until the next scan looks. By display path, a folder goes
+    /// with all it held and a file with the `bytes` it took; the folders above them get smaller by as much.
+    public func removing(_ removed: [(path: String, bytes: Int64)]) -> ScanTree {
+        var nodes = self.nodes
+        var changed: Set<NodeID> = []
+        func shrink(from folder: NodeID, bytes: Int64, media: Int64, files: Int64) {
+            var current: NodeID? = folder
+            while let id = current {
+                let node = nodes[Int(id.raw)]
+                nodes[Int(id.raw)] = node.changing(totalBytes: max(0, node.totalBytes - bytes),
+                                                   totalMediaBytes: max(0, node.totalMediaBytes - media),
+                                                   totalFileCount: max(0, node.totalFileCount - files))
+                changed.insert(id)
+                current = node.parent
+            }
+        }
+        for (path, bytes) in removed {
+            if let id = nodeID(forPath: path) {
+                let node = nodes[Int(id.raw)]
+                guard let parent = node.parent, nodes[Int(parent.raw)].children.contains(id) else { continue }
+                nodes[Int(parent.raw)] = nodes[Int(parent.raw)].changing(children: nodes[Int(parent.raw)].children.filter { $0 != id })
+                shrink(from: parent, bytes: node.totalBytes, media: node.totalMediaBytes, files: node.totalFileCount)
+            } else if let id = nodeID(forPath: (path as NSString).deletingLastPathComponent) {
+                let node = nodes[Int(id.raw)]
+                let media = bigFiles.first { $0.path == path }?.isMedia == true ? bytes : 0
+                nodes[Int(id.raw)] = node.changing(ownBytes: max(0, node.ownBytes - bytes), ownMediaBytes: max(0, node.ownMediaBytes - media),
+                                                   ownFileCount: max(0, node.ownFileCount - 1))
+                shrink(from: id, bytes: bytes, media: media, files: 1)
+            }
+        }
+        for id in changed {
+            let node = nodes[Int(id.raw)]
+            nodes[Int(id.raw)] = node.changing(children: node.children.sorted { nodes[Int($0.raw)].totalBytes > nodes[Int($1.raw)].totalBytes })
+        }
+        var gone = RemovedPaths()
+        gone.insert(contentsOf: removed.map(\.path))
+        return ScanTree(nodes: nodes, rootPath: rootPath, displayRoot: displayRoot, bigFiles: bigFiles.filter { !gone.covers($0.path) },
+                        stats: stats)
+    }
+}
+
+extension ScanNode {
+    fileprivate func changing(
+        children: [NodeID]? = nil, ownBytes: Int64? = nil, ownMediaBytes: Int64? = nil, ownFileCount: Int32? = nil,
+        totalBytes: Int64? = nil, totalMediaBytes: Int64? = nil, totalFileCount: Int64? = nil
+    ) -> ScanNode {
+        ScanNode(name: name, parent: parent, children: children ?? self.children, ownBytes: ownBytes ?? self.ownBytes,
+                 ownMediaBytes: ownMediaBytes ?? self.ownMediaBytes, ownFileCount: ownFileCount ?? self.ownFileCount, markers: markers,
+                 isInaccessible: isInaccessible, totalBytes: totalBytes ?? self.totalBytes,
+                 totalMediaBytes: totalMediaBytes ?? self.totalMediaBytes, totalFileCount: totalFileCount ?? self.totalFileCount,
+                 newestOwnModification: newestOwnModification, newestModification: newestModification)
+    }
 }
