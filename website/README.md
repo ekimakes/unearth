@@ -25,6 +25,15 @@ The number next to the button is GitHub's own count. On load, the page asks `htt
 - **The repository or the file name:** the `RELEASE` const at the top of the script in `index.html`. Every release must attach a file with exactly that name, because the button links to `releases/latest/download/<file>`. The `href` values written in the HTML are only for visitors without JavaScript.
 - **The site's address:** the `og:image` meta tag needs a full URL. It's `useunearth.com`, the custom domain set in the repository's Pages settings.
 
+## The comparison
+
+The table is checked by hand against each app's own pages, last on 2026-11-05. Prices change, so check them again before changing the date in the note under it. A dash means the app's own site doesn't say so, never that it can't. Only write "No" where its own site says no.
+
+- **CleanMyMac:** [prices](https://cleanmymac.com/blog/cleanmymac-vs-cleanmymac-x), [Space Lens](https://macpaw.com/support/cleanmymac/knowledgebase/space-lens), [system junk](https://macpaw.com/support/cleanmymac/knowledgebase/system-junk-cleanup-list), [duplicates, which skip the Trash](https://macpaw.com/support/cleanmymac/knowledgebase/duplicate-files), [similar images](https://macpaw.com/support/cleanmymac/knowledgebase/similar-images), [uninstaller](https://macpaw.com/support/cleanmymac/knowledgebase/uninstaller), [downloads by app](https://macpaw.com/support/cleanmymac/knowledgebase/downloads)
+- **DaisyDisk:** [prices](https://daisydiskapp.com/support/pricing), [no duplicates](https://daisydiskapp.com/support/faq/), [deletes permanently](https://daisydiskapp.com/guide/4/en/DeletingFiles/)
+- **Homy:** [features, prices and Trash](https://tryhomy.app/llms.txt), [no account](https://tryhomy.app)
+- **Mole:** [Terminal version](https://github.com/tw93/Mole), [Mac app and how it deletes](https://mole.fit/llms.txt)
+
 ## The pictures
 
 Every picture in `assets/`, and `hero.mp4`, shows the real app, rendered from a made-up sample Mac: free photos from [Unsplash](https://unsplash.com/license) (through [Lorem Picsum](https://picsum.photos)), fake invoices and four sample apps. None of it is anyone's real files, and photos of people were left out. Sizes and Library counts were scaled up so the sample reads as a normal 1 TB Mac, which is why the footer says the screens show a sample Mac. The pointer and the typing in the video are added on top of those screens. `hero-hevc.mp4` is the same video in a smaller format for browsers that play it, and `hero.webp` is the animated version for the README on GitHub.

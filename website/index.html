@@ -28,6 +28,7 @@
   --sand: #F7F2E8;
   --orange: #E8772E;
   --orange-ink: #1C1006;
+  --orange-deep: #B8540F;
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Roboto, sans-serif;
   --font-figure: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
   --gutter-l: max(20px, env(safe-area-inset-left, 0px));
@@ -131,13 +132,56 @@ h1 { font-size: clamp(46px, 7.4vw, 96px); line-height: 1.02; padding-top: clamp(
 .part.sand { background: var(--sand); }
 .part.sky { background: var(--sky-low); }
 .part h2 { font-size: clamp(36px, 5.2vw, 62px); line-height: 1.06; }
-.part p { max-width: 640px; margin-inline: auto; padding-top: 14px; font-size: clamp(19px, 1.8vw, 22px); line-height: 1.38; color: var(--ink-2); }
+.part p { max-width: 640px; margin-inline: auto; padding-top: 14px; font-size: clamp(19px, 1.8vw, 22px); line-height: 1.38; color: var(--ink-2); text-wrap: balance; }
 .shot { display: block; margin-top: clamp(36px, 4.6vw, 56px); }
 .shot img {
   margin-inline: auto;
   border-radius: clamp(10px, 1.4vw, 16px);
   box-shadow: 0 0 0 1px rgba(21, 23, 28, .07), 0 30px 60px -30px rgba(40, 50, 70, .32);
 }
+
+/* The comparison: a table with Unearth's column lit. On a phone each row's name sits above its marks, so nothing is cut off. */
+.compare {
+  box-sizing: border-box;
+  width: min(1040px, 100%);
+  margin: clamp(36px, 4.6vw, 56px) auto 0;
+  overflow: hidden;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: clamp(10px, 1.4vw, 16px);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px rgba(21, 23, 28, .07), 0 30px 60px -30px rgba(40, 50, 70, .32);
+  font-size: 16px;
+  line-height: 1.25;
+}
+.compare caption, .compare .y span, .compare .n span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.compare th, .compare td { padding: 14px 12px; border-top: 1px solid rgba(21, 23, 28, .07); color: var(--ink-2); font-weight: 500; }
+.compare tbody th { padding-left: 28px; color: var(--ink); text-align: left; }
+.compare thead th, .compare thead td { border-top: 0; padding-block: 20px 16px; font-weight: 650; }
+.compare thead img { display: inline-block; width: 26px; height: 26px; margin-right: 8px; vertical-align: -7px; }
+.compare .us { width: 15%; background: var(--sky-low); color: var(--ink); }
+.compare .price td { color: var(--ink); font-weight: 600; }
+.compare .price b { font: 700 24px/1 var(--font-figure); color: var(--orange-deep); }
+.compare .y::before {
+  content: "";
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  vertical-align: middle;
+  background: var(--ink-2);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Cpath d='M5 11.5l4.2 4.2L17 7' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Cpath d='M5 11.5l4.2 4.2L17 7' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.compare .us.y::before { background: var(--orange-deep); }
+.compare .n::before { content: ""; display: inline-block; width: 14px; height: 2px; border-radius: 1px; vertical-align: middle; background: rgba(21, 23, 28, .2); }
+.part p.note { max-width: 780px; padding-top: 20px; font-size: 14px; line-height: 1.45; }
 
 .part.deep { padding-inline: 0; padding-bottom: 0; background: var(--ink); color: #fff; }
 .part.deep h2, .part.deep p { padding-left: var(--gutter-l); padding-right: var(--gutter-r); }
@@ -159,6 +203,17 @@ footer {
   text-align: center;
 }
 
+@media (max-width: 640px) {
+  .compare, .compare thead, .compare tbody { display: block; }
+  .compare tr { display: grid; grid-template-columns: .95fr 1.25fr 1.05fr .95fr .8fr; }
+  .compare thead td { display: none; }
+  .compare thead th { align-self: end; padding: 16px 0 12px; font-size: clamp(10px, 3.1vw, 12px); letter-spacing: -.01em; }
+  .compare thead img { display: block; width: 24px; height: 24px; margin: 0 auto 4px; }
+  .compare tbody th { grid-column: 1 / -1; padding: 12px 8px 0; text-align: center; font-size: 15px; }
+  .compare td { align-self: center; padding: 6px 0 10px; border-top: 0; font-size: 13px; }
+  .compare .us { width: auto; background: none; }
+  .compare .price b { font-size: 19px; }
+}
 @media (max-width: 560px) {
   .download { display: flex; }
   .dl { flex: 1 1 auto; justify-content: center; padding: 15px 16px; font-size: 17px; }
@@ -238,6 +293,31 @@ footer {
       <source media="(max-width: 640px)" srcset="assets/downloads-phone.webp" width="448" height="300">
       <img src="assets/downloads.webp" width="960" height="300" loading="lazy" alt="Downloads grouped by source, with the logos of ChatGPT, Canva, X, Gmail, Slack and WhatsApp.">
     </picture>
+  </section>
+  <section class="part sand">
+    <h2>The best one is free.</h2>
+    <p>All of this in one app. No subscription, no account, and nothing leaves your Mac.</p>
+    <table class="compare">
+      <caption>How Unearth compares with CleanMyMac, DaisyDisk, Homy and Mole</caption>
+      <thead>
+        <tr><td></td><th scope="col" class="us"><img src="assets/icon.png" alt="" width="26" height="26">Unearth</th><th scope="col">CleanMyMac</th><th scope="col">DaisyDisk</th><th scope="col">Homy</th><th scope="col">Mole</th></tr>
+      </thead>
+      <tbody>
+        <tr class="price"><th scope="row">Price</th><td class="us"><b>Free</b></td><td>$39.95 a year</td><td>$9.99</td><td>From $19</td><td>Free or $19</td></tr>
+        <tr><th scope="row">See what's filling your disk</th><td class="us y"><span>Yes</span></td><td class="y"><span>Yes</span></td><td class="y"><span>Yes</span></td><td>Partly</td><td class="y"><span>Yes</span></td></tr>
+        <tr><th scope="row">Clear caches and junk</th><td class="us y"><span>Yes</span></td><td class="y"><span>Yes</span></td><td class="n"><span>Not stated</span></td><td class="n"><span>Not stated</span></td><td class="y"><span>Yes</span></td></tr>
+        <tr><th scope="row">Clear developer files</th><td class="us y"><span>Yes</span></td><td class="y"><span>Yes</span></td><td class="n"><span>Not stated</span></td><td class="n"><span>Not stated</span></td><td class="y"><span>Yes</span></td></tr>
+        <tr><th scope="row">Find duplicates</th><td class="us y"><span>Yes</span></td><td class="y"><span>Yes</span></td><td>No</td><td class="y"><span>Yes</span></td><td class="n"><span>Not stated</span></td></tr>
+        <tr><th scope="row">Find look-alike photos</th><td class="us y"><span>Yes</span></td><td class="y"><span>Yes</span></td><td class="n"><span>Not stated</span></td><td class="y"><span>Yes</span></td><td class="n"><span>Not stated</span></td></tr>
+        <tr><th scope="row">Remove apps and their leftovers</th><td class="us y"><span>Yes</span></td><td class="y"><span>Yes</span></td><td class="n"><span>Not stated</span></td><td>Partly</td><td class="y"><span>Yes</span></td></tr>
+        <tr><th scope="row">Search the text in your images</th><td class="us y"><span>Yes</span></td><td class="n"><span>Not stated</span></td><td class="n"><span>Not stated</span></td><td class="y"><span>Yes</span></td><td class="n"><span>Not stated</span></td></tr>
+        <tr><th scope="row">Sort downloads by where they came from</th><td class="us y"><span>Yes</span></td><td>Partly</td><td class="n"><span>Not stated</span></td><td class="y"><span>Yes</span></td><td class="n"><span>Not stated</span></td></tr>
+        <tr><th scope="row">Your files go to the Trash first</th><td class="us y"><span>Yes</span></td><td>Partly</td><td>No</td><td class="y"><span>Yes</span></td><td>Partly</td></tr>
+        <tr><th scope="row">Never connects to the internet</th><td class="us y"><span>Yes</span></td><td class="n"><span>Not stated</span></td><td class="n"><span>Not stated</span></td><td class="n"><span>Not stated</span></td><td class="n"><span>Not stated</span></td></tr>
+        <tr><th scope="row">Open source</th><td class="us y"><span>Yes</span></td><td class="n"><span>Not stated</span></td><td class="n"><span>Not stated</span></td><td class="n"><span>Not stated</span></td><td class="y"><span>Yes</span></td></tr>
+      </tbody>
+    </table>
+    <p class="note">Checked on each app's own website in November 2026. A dash means we couldn't find it there, not that the app can't do it. CleanMyMac is also $119.95 once. Mole is free in the Terminal, where its developer cleanup lives, and $19 as a Mac app.</p>
   </section>
   <section class="part deep">
     <h2>Nothing leaves your Mac.</h2>
@@ -359,6 +439,16 @@ function summarize(releases) {
     }
   }
   loadDownloads();
+
+  // MARK: The comparison
+
+  // A phone lays the table out as a grid, which takes its meaning away from screen readers, so it's stated outright.
+  const table = document.querySelector('.compare');
+  table.setAttribute('role', 'table');
+  const roles = { 'thead, tbody': 'rowgroup', tr: 'row', 'th[scope=col]': 'columnheader', 'th[scope=row]': 'rowheader', 'td:not(:empty)': 'cell' };
+  for (const [selector, role] of Object.entries(roles)) {
+    for (const element of table.querySelectorAll(selector)) element.setAttribute('role', role);
+  }
 
   // MARK: The video
 

@@ -18,7 +18,7 @@ Find any picture by what's in it, by the words in it, or by name, in plain langu
 
 ## Clear whole folders
 
-A folder of 50,000 images opens as an overview by date, folder or download source. Tick as many as you like and move them to the Trash together.
+Big folders open as an overview by date, folder or download source. Tick as many as you like and move them to the Trash together.
 
 ![Three folders ticked, 20,400 images selected, ready to move to the Trash](website/assets/folders.webp)
 

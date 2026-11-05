@@ -3,7 +3,7 @@ import Observation
 import UnearthCore
 
 /// One screen's files split into sections (months, folders or download sources), each loaded a page at a time as
-/// it comes into view: a screen of 50,000 photos opens at once and holds only what has been looked at.
+/// it comes into view: a huge screen opens at once and holds only what has been looked at.
 @MainActor @Observable
 final class Timeline {
     /// Where the files come from.

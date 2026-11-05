@@ -78,20 +78,13 @@ struct StrataView: View {
             guard let category = layer.category else { continue }
             var fill = Strata.color(category, scheme)
             if hovered == layer { fill = fill.mix(with: .white, by: 0.14) }
-            context.fill(surface(layer, size: size, shift: 0, closed: true), with: .color(fill))
-            // Faint sediment lines inside thicker layers.
-            let thickness = (layer.bottom - layer.top) * size.height
-            guard thickness > 26 else { continue }
-            for fraction in [0.38, 0.72] {
-                context.stroke(surface(layer, size: size, shift: thickness * fraction, closed: false),
-                               with: .color(.white.opacity(scheme == .dark ? 0.05 : 0.12)), lineWidth: 1)
-            }
+            context.fill(surface(layer, size: size), with: .color(fill))
         }
     }
 
-    /// A layer's wavy top edge, shifted down by `shift`; closed down to the bottom of the picture for filling.
-    private func surface(_ layer: StrataLayer, size: CGSize, shift: CGFloat, closed: Bool) -> Path {
-        let points = edge(layer, size: size).map { CGPoint(x: $0.x, y: $0.y + shift) }
+    /// A layer's wavy top edge, closed down to the bottom of the picture for filling.
+    private func surface(_ layer: StrataLayer, size: CGSize) -> Path {
+        let points = edge(layer, size: size)
         var path = Path()
         path.move(to: points[0])
         for index in 1..<points.count {
@@ -99,11 +92,9 @@ struct StrataView: View {
             path.addQuadCurve(to: CGPoint(x: (previous.x + point.x) / 2, y: (previous.y + point.y) / 2), control: previous)
         }
         path.addLine(to: points[points.count - 1])
-        if closed {
-            path.addLine(to: CGPoint(x: size.width, y: size.height))
-            path.addLine(to: CGPoint(x: 0, y: size.height))
-            path.closeSubpath()
-        }
+        path.addLine(to: CGPoint(x: size.width, y: size.height))
+        path.addLine(to: CGPoint(x: 0, y: size.height))
+        path.closeSubpath()
         return path
     }
 

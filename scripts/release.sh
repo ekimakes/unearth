@@ -15,8 +15,8 @@ IDENTITY="Developer ID Application"
 NOTARIZE=1
 [[ "${1:-}" == "--no-notarize" ]] && NOTARIZE=0
 
-rm -rf "$OUT/Unearth.xcarchive" "$OUT/disk" "$OUT/Unearth.dmg"
-mkdir -p "$OUT/disk"
+rm -rf "$OUT/Unearth.xcarchive" "$OUT/Unearth.dmg"
+mkdir -p "$OUT"
 
 echo "Building and signing the app..."
 xcodebuild -project Unearth.xcodeproj -scheme Unearth -configuration Release -derivedDataPath "$OUT/DerivedData" \
@@ -27,9 +27,9 @@ codesign --verify --deep --strict "$APP"
 codesign --display --entitlements - "$APP" 2>/dev/null | grep -q 'get-task-allow' && { echo "The app is still debuggable: not a release build."; exit 1; }
 
 echo "Making the disk image..."
-ditto "$APP" "$OUT/disk/Unearth.app"
-ln -s /Applications "$OUT/disk/Applications"
-hdiutil create -volname Unearth -srcfolder "$OUT/disk" -format UDZO -ov "$OUT/Unearth.dmg" -quiet
+python3 -m venv "$OUT/dmgbuild"
+"$OUT/dmgbuild/bin/pip" install --quiet --disable-pip-version-check dmgbuild==1.6.5
+"$OUT/dmgbuild/bin/dmgbuild" -s scripts/dmg/settings.py -D app="$APP" Unearth "$OUT/Unearth.dmg"
 codesign --force --sign "$IDENTITY" --timestamp "$OUT/Unearth.dmg"
 
 if (( NOTARIZE )); then
