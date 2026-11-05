@@ -1,0 +1,11 @@
+# Build output
+build/
+.build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Local tooling and scratch
+.superpowers/
+.claude/
+.DS_Store

@@ -1,0 +1,329 @@
+{
+  "version": 1,
+  "neverOffer": [
+    "~/Library/Caches/com.apple.bird",
+    "~/Library/Caches/CloudKit",
+    "~/Library/Caches/com.apple.akd",
+    "~/Library/Caches/com.apple.containermanagerd",
+    "~/Library/Caches/com.apple.nsurlsessiond",
+    "~/Library/Caches/FamilyCircle",
+    "~/Library/Caches/com.apple.HomeKit",
+    "~/Library/Caches/Homebrew/api"
+  ],
+  "rules": [
+    {
+      "id": "browser-caches",
+      "section": "junk",
+      "group": "Browser caches",
+      "patterns": [
+        { "path": "~/Library/Containers/com.apple.Safari/Data/Library/Caches", "title": "Safari", "owner": "com.apple.Safari" },
+        { "path": "~/Library/Caches/com.apple.Safari", "title": "Safari", "owner": "com.apple.Safari" },
+        { "path": "~/Library/Caches/Google/Chrome", "title": "Google Chrome", "owner": "com.google.Chrome" },
+        { "path": "~/Library/Caches/BraveSoftware/Brave-Browser", "title": "Brave", "owner": "com.brave.Browser" },
+        { "path": "~/Library/Caches/Firefox/Profiles/*/cache2", "title": "Firefox", "owner": "org.mozilla.firefox" },
+        { "path": "~/Library/Caches/company.thebrowser.Browser", "title": "Arc", "owner": "company.thebrowser.Browser" },
+        { "path": "~/Library/Caches/Microsoft Edge", "title": "Microsoft Edge", "owner": "com.microsoft.edgemac" },
+        { "path": "~/Library/Caches/com.operasoftware.Opera", "title": "Opera", "owner": "com.operasoftware.Opera" }
+      ],
+      "what": "Copies of web pages and images your browser saved so sites load faster.",
+      "regrows": "Yes. The browser downloads what it needs again as you browse.",
+      "safeToDelete": "Yes. You stay signed in and keep your history, bookmarks and passwords.",
+      "safety": "safe",
+      "action": { "type": "trash" }
+    },
+    {
+      "id": "after-effects-cache",
+      "section": "junk",
+      "group": "Adobe media caches",
+      "patterns": [
+        { "path": "~/Library/Caches/Adobe/After Effects/*", "title": "After Effects {name} disk cache", "owner": "com.adobe.AfterEffects.application" }
+      ],
+      "titleStyle": "folderName",
+      "what": "Preview frames After Effects saved so playback is faster. Each version keeps its own cache, even after you upgrade.",
+      "regrows": "Yes. After Effects rebuilds previews as you work, which can take a while on big projects.",
+      "safeToDelete": "Yes, while After Effects is closed. It's the same as Empty Disk Cache in its settings.",
+      "safety": "safe",
+      "action": { "type": "trash" }
+    },
+    {
+      "id": "mail-downloads",
+      "section": "junk",
+      "group": "Mail attachment copies",
+      "patterns": [
+        { "path": "~/Library/Containers/com.apple.mail/Data/Library/Mail Downloads", "title": "Mail downloads", "owner": "com.apple.mail" }
+      ],
+      "what": "Copies of email attachments you opened from Mail. If you edited or signed one after opening it, the changed version may only be here.",
+      "regrows": "Only when you open those attachments again.",
+      "safeToDelete": "Usually. Your emails keep the original attachments, but check for files you changed first.",
+      "safety": "review",
+      "action": { "type": "trash" }
+    },
+    {
+      "id": "device-updates",
+      "section": "junk",
+      "group": "iPhone & iPad updates",
+      "patterns": [
+        { "path": "~/Library/iTunes/iPhone Software Updates", "title": "iPhone software updates" },
+        { "path": "~/Library/iTunes/iPad Software Updates", "title": "iPad software updates" },
+        { "path": "~/Library/iTunes/iPod Software Updates", "title": "iPod software updates" }
+      ],
+      "what": "Software update files downloaded for an iPhone, iPad or iPod.",
+      "regrows": "Only if you update a device from this Mac again.",
+      "safeToDelete": "Yes. Your devices already installed them, or will download them again.",
+      "safety": "safe",
+      "action": { "type": "trash" }
+    },
+    {
+      "id": "xcode-derived-data",
+      "section": "developer",
+      "group": "Xcode build files",
+      "patterns": [ { "path": "~/Library/Developer/Xcode/DerivedData/*" } ],
+      "titleStyle": "derivedData",
+      "what": "Temporary files Xcode creates while building your apps.",
+      "regrows": "Yes. Xcode rebuilds them the next time you build the project.",
+      "safeToDelete": "Yes. Your next build just takes a little longer.",
+      "safety": "safe",
+      "action": { "type": "trash" }
+    },
+    {
+      "id": "xcode-test-devices",
+      "section": "developer",
+      "group": "Xcode build files",
+      "patterns": [ { "path": "~/Library/Developer/XCTestDevices", "title": "Test simulator copies" } ],
+      "what": "Simulator copies Xcode makes to run tests in parallel.",
+      "regrows": "Yes, the next time you run tests in parallel.",
+      "safeToDelete": "Yes, while Xcode isn't running tests.",
+      "safety": "safe",
+      "action": { "type": "trash" }
+    },
+    {
+      "id": "xcode-archives",
+      "section": "developer",
+      "group": "Xcode archives",
+      "patterns": [ { "path": "~/Library/Developer/Xcode/Archives/*/*.xcarchive" } ],
+      "titleStyle": "folderName",
+      "what": "Saved builds of apps you archived, for example to upload to the App Store.",
+      "regrows": "No. Only new archives you make appear here.",
+      "safeToDelete": "Only if you no longer need these builds or their debug symbols for crash reports.",
+      "safety": "review",
+      "action": { "type": "trash" }
+    },
+    {
+      "id": "xcode-device-support",
+      "section": "developer",
+      "group": "Device support files",
+      "patterns": [
+        { "path": "~/Library/Developer/Xcode/iOS DeviceSupport/*" },
+        { "path": "~/Library/Developer/Xcode/watchOS DeviceSupport/*" },
+        { "path": "~/Library/Developer/Xcode/tvOS DeviceSupport/*" },
+        { "path": "~/Library/Developer/Xcode/visionOS DeviceSupport/*" }
+      ],
+      "titleStyle": "folderName",
+      "what": "Debugging files Xcode copied from a device you connected.",
+      "regrows": "Yes. Xcode copies them again when you connect a device with that system version.",
+      "safeToDelete": "Yes. Reconnecting the device brings them back.",
+      "safety": "safe",
+      "action": { "type": "trash" }
+    },
+    {
+      "id": "xcode-previews",
+      "section": "developer",
+      "group": "Xcode build files",
+      "patterns": [ { "path": "~/Library/Developer/Xcode/UserData/Previews", "title": "SwiftUI preview data" } ],
+      "what": "Simulators and builds Xcode uses to show SwiftUI previews.",
+      "regrows": "Yes, the next time you open a preview.",
+      "safeToDelete": "Yes, while Xcode is closed.",
+      "safety": "safe",
+      "action": { "type": "trash" }
+    },
+    {
+      "id": "simulator-caches",
+      "section": "developer",
+      "group": "Simulators",
+      "patterns": [ { "path": "~/Library/Developer/CoreSimulator/Caches", "title": "Simulator caches" } ],
+      "what": "Cached data the iOS Simulator keeps so it starts faster.",
+      "regrows": "Yes, as you use the Simulator.",
+      "safeToDelete": "Yes, while the Simulator is closed.",
+      "safety": "safe",
+      "action": { "type": "trash" }
+    },
+    {
+      "id": "package-caches",
+      "section": "developer",
+      "group": "Package manager caches",
+      "patterns": [
+        { "path": "~/.npm/_cacache", "title": "npm" },
+        { "path": "~/Library/Caches/Yarn", "title": "Yarn" },
+        { "path": "~/.yarn/berry/cache", "title": "Yarn (Berry)" },
+        { "path": "~/.bun/install/cache", "title": "Bun" },
+        { "path": "~/Library/Caches/pip", "title": "pip" },
+        { "path": "~/.cache/pip", "title": "pip" },
+        { "path": "~/.cache/uv", "title": "uv" },
+        { "path": "~/Library/Caches/Homebrew/downloads", "title": "Homebrew downloads" },
+        { "path": "~/.cargo/registry/cache", "title": "Cargo downloads" },
+        { "path": "~/.cargo/registry/src", "title": "Cargo sources" },
+        { "path": "~/.cargo/git/checkouts", "title": "Cargo git checkouts" },
+        { "path": "~/.gradle/caches", "title": "Gradle" },
+        { "path": "~/.gradle/wrapper/dists", "title": "Gradle versions" },
+        { "path": "~/Library/Caches/CocoaPods", "title": "CocoaPods" },
+        { "path": "~/go/pkg/mod", "title": "Go modules" },
+        { "path": "~/Library/Caches/org.swift.swiftpm", "title": "Swift packages" }
+      ],
+      "what": "Downloaded copies of code libraries, kept so installs are faster.",
+      "regrows": "Yes. They download again the next time a project needs them.",
+      "safeToDelete": "Yes. The next install may be slower and needs an internet connection.",
+      "safety": "safe",
+      "action": { "type": "trash" }
+    },
+    {
+      "id": "maven-repo",
+      "section": "developer",
+      "group": "Package manager caches",
+      "patterns": [ { "path": "~/.m2/repository", "title": "Maven" } ],
+      "what": "Java libraries Maven downloaded for your projects.",
+      "regrows": "Yes. Maven downloads what a project needs on its next build.",
+      "safeToDelete": "Usually. Check you don't rely on libraries you installed into it by hand.",
+      "safety": "review",
+      "action": { "type": "trash" }
+    },
+    {
+      "id": "pnpm-store",
+      "section": "developer",
+      "group": "Package manager caches",
+      "patterns": [
+        { "path": "~/Library/pnpm/store", "title": "pnpm store" },
+        { "path": "~/.local/share/pnpm/store", "title": "pnpm store" },
+        { "path": "~/.pnpm-store", "title": "pnpm store" }
+      ],
+      "what": "Shared copies of packages that your pnpm projects link to.",
+      "regrows": "Yes. pnpm adds packages back when projects need them.",
+      "safeToDelete": "Not by moving the folder, because projects link into it. Let pnpm clean it instead.",
+      "safety": "safe",
+      "action": { "type": "report", "guidance": "Run “pnpm store prune” in Terminal to remove packages no project uses." }
+    },
+    {
+      "id": "conda-pkgs",
+      "section": "developer",
+      "group": "Package manager caches",
+      "patterns": [
+        { "path": "~/miniconda3/pkgs", "title": "Conda package cache" },
+        { "path": "~/anaconda3/pkgs", "title": "Conda package cache" },
+        { "path": "~/miniforge3/pkgs", "title": "Conda package cache" },
+        { "path": "~/.conda/pkgs", "title": "Conda package cache" }
+      ],
+      "what": "Downloaded Python packages Conda keeps to create environments.",
+      "regrows": "Yes, when you create or update environments.",
+      "safeToDelete": "Not by moving the folder. Let Conda clean it instead.",
+      "safety": "safe",
+      "action": { "type": "report", "guidance": "Run “conda clean --all” in Terminal." }
+    },
+    {
+      "id": "browser-automation",
+      "section": "developer",
+      "group": "Browser automation",
+      "patterns": [
+        { "path": "~/Library/Caches/ms-playwright", "title": "Playwright browsers" },
+        { "path": "~/.cache/puppeteer", "title": "Puppeteer browsers" }
+      ],
+      "what": "Test copies of Chrome, Firefox and WebKit downloaded for automated testing.",
+      "regrows": "Yes. They download again the next time your tests need them.",
+      "safeToDelete": "Yes. Your tests just download the browsers again.",
+      "safety": "safe",
+      "action": { "type": "trash" }
+    },
+    {
+      "id": "ai-models",
+      "section": "developer",
+      "group": "AI models",
+      "patterns": [
+        { "path": "~/.cache/huggingface/hub/models--*" },
+        { "path": "~/.ollama/models", "title": "Ollama models" },
+        { "path": "~/.lmstudio/models/*/*" },
+        { "path": "~/.cache/lm-studio/models/*/*" },
+        { "path": "~/.cache/torch/hub", "title": "PyTorch Hub models" },
+        { "path": "~/.cache/whisper", "title": "Whisper models" }
+      ],
+      "titleStyle": "huggingFace",
+      "what": "AI models downloaded to your Mac to run locally.",
+      "regrows": "Only if an app downloads the model again, which can take a while.",
+      "safeToDelete": "If you don't use this model anymore. You can download it again later.",
+      "safety": "review",
+      "action": { "type": "trash" }
+    },
+    {
+      "id": "virtual-machines",
+      "section": "developer",
+      "group": "Virtual machines & containers",
+      "patterns": [
+        { "path": "~/Library/Containers/com.docker.docker/Data/vms", "title": "Docker Desktop", "guidance": "Open Docker Desktop and use Troubleshoot › Clean / Purge data, or run “docker system prune -a” in Terminal." },
+        { "path": "~/.orbstack", "title": "OrbStack", "guidance": "In OrbStack, delete machines and images you no longer need, or run “docker system prune -a”." },
+        { "path": "~/.colima", "title": "Colima", "guidance": "Run “colima delete” for machines you no longer need." },
+        { "path": "~/.local/share/containers/podman/machine", "title": "Podman", "guidance": "Run “podman system prune” or remove unused machines with “podman machine rm”." },
+        { "path": "~/Library/Containers/com.utmapp.UTM/Data/Documents", "title": "UTM virtual machines", "guidance": "Delete virtual machines you don't need from inside UTM." },
+        { "path": "~/Parallels", "title": "Parallels virtual machines", "guidance": "Remove virtual machines you don't need in Parallels Desktop's Control Center." }
+      ],
+      "what": "Disk images for virtual machines or containers. They often keep growing on their own.",
+      "regrows": "Yes, as you use the app that created them.",
+      "safeToDelete": "Not by deleting the file, which would lose everything inside. Clean up from the app itself.",
+      "safety": "careful",
+      "action": { "type": "report", "guidance": "Clean this up from inside the app that created it." }
+    },
+    {
+      "id": "electron-caches",
+      "section": "junk",
+      "group": "App web caches",
+      "patterns": [
+        { "path": "~/Library/Application Support/*/Cache" },
+        { "path": "~/Library/Application Support/*/Code Cache" },
+        { "path": "~/Library/Application Support/*/GPUCache" },
+        { "path": "~/Library/Application Support/*/CachedData" },
+        { "path": "~/Library/Application Support/*/Service Worker/CacheStorage" }
+      ],
+      "titleStyle": "folderName",
+      "ownerFromMatch": true,
+      "what": "Web content an app saved so it opens faster. Apps like Slack, Discord and VS Code are built this way.",
+      "regrows": "Yes. The app saves fresh copies as you use it.",
+      "safeToDelete": "Yes, while the app is closed.",
+      "safety": "safe",
+      "action": { "type": "trash" }
+    },
+    {
+      "id": "logs",
+      "section": "junk",
+      "group": "Logs & crash reports",
+      "patterns": [ { "path": "~/Library/Logs/*" } ],
+      "titleStyle": "appName",
+      "what": "Records apps keep about what they did, including crash reports.",
+      "regrows": "Yes. Apps keep writing new logs as you use them.",
+      "safeToDelete": "Yes. You'd only need them to send to a developer about a problem.",
+      "safety": "safe",
+      "action": { "type": "trash" }
+    },
+    {
+      "id": "apple-caches",
+      "section": "junk",
+      "group": "Apple app caches",
+      "patterns": [ { "path": "~/Library/Caches/com.apple.*" } ],
+      "titleStyle": "appName",
+      "ownerFromMatch": true,
+      "what": "Temporary files Apple's own apps and services keep so things load faster.",
+      "regrows": "Yes. macOS rebuilds them as needed.",
+      "safeToDelete": "Usually. Some features may feel slower or sync again once.",
+      "safety": "review",
+      "action": { "type": "trash" }
+    },
+    {
+      "id": "app-caches",
+      "section": "junk",
+      "group": "App caches",
+      "patterns": [ { "path": "~/Library/Caches/*" } ],
+      "titleStyle": "appName",
+      "ownerFromMatch": true,
+      "what": "Temporary files apps keep so things load faster.",
+      "regrows": "Yes. Apps rebuild them as you use them, so the first launch may be a little slower.",
+      "safeToDelete": "Yes, while the app is closed.",
+      "safety": "safe",
+      "action": { "type": "trash" }
+    }
+  ]
+}

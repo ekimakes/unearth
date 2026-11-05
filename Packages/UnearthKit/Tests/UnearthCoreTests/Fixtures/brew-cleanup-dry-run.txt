@@ -1,0 +1,3 @@
+Would remove: /opt/homebrew/Cellar/node/22.1.0 (2,345 files, 80.1MB)
+Would remove: /Users/u/Library/Caches/Homebrew/downloads/abc--python@3.12--3.12.4.arm64_sonoma.bottle.tar.gz (16.2MB)
+==> This operation would free approximately 1.2GB of disk space.

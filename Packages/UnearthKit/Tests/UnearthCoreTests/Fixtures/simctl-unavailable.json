@@ -1,0 +1,25 @@
+{
+  "devices" : {
+    "com.apple.CoreSimulator.SimRuntime.iOS-16-4" : [
+      {
+        "availabilityError" : "runtime profile not found using \"System\" match policy",
+        "dataPath" : "/Users/u/Library/Developer/CoreSimulator/Devices/AAAAAAAA-0000-4000-8000-000000000001/data",
+        "isAvailable" : false,
+        "name" : "iPhone 14",
+        "state" : "Shutdown",
+        "udid" : "AAAAAAAA-0000-4000-8000-000000000001"
+      },
+      {
+        "availabilityError" : "runtime profile not found using \"System\" match policy",
+        "dataPath" : "/Users/u/Library/Developer/CoreSimulator/Devices/AAAAAAAA-0000-4000-8000-000000000002/data",
+        "isAvailable" : false,
+        "name" : "iPad Air",
+        "state" : "Shutdown",
+        "udid" : "AAAAAAAA-0000-4000-8000-000000000002"
+      }
+    ],
+    "com.apple.CoreSimulator.SimRuntime.iOS-26-4" : [
+
+    ]
+  }
+}

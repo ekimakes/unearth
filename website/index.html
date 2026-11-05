@@ -1,0 +1,1078 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Unearth for Mac</title>
+<meta name="description" content="Unearth is a free Mac app that shows what's filling your disk, clears it out safely, and finds any picture by what's in it. Nothing ever leaves your Mac.">
+<meta name="theme-color" content="#DCEAF4">
+<link rel="icon" type="image/png" href="assets/icon.png">
+<link rel="apple-touch-icon" href="assets/touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Unearth for Mac">
+<meta property="og:description" content="Find anything. Free up the rest. A free Mac app, and nothing ever leaves your Mac.">
+<meta property="og:image" content="https://ekimakes.github.io/unearth/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+/* The page is a dig: daylight above the ground, the app's strata below it, then down through darker rock to bedrock.
+   One orange vein runs from the strata to the last Download button. The colors are the app's own (Palette.swift,
+   StrataView.swift), so the look is fixed rather than following the visitor's light or dark setting. */
+:root {
+  color-scheme: dark;
+  --sky-top: #DCEAF4;
+  --sky-low: #F4ECDF;
+  --ink-day: #15171C;
+  --ink-day-2: #474D59;
+  --ink: #ECEDF0;
+  --ink-2: #B5B4B0;
+  --vein: #E8772E;
+  --vein-ink: #1C1006;
+  --bedrock: #0F1013;
+  --line: rgba(255, 255, 255, .1);
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Roboto, sans-serif;
+  --font-figure: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --font-label: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --gutter-l: max(20px, env(safe-area-inset-left, 0px));
+  --gutter-r: max(20px, env(safe-area-inset-right, 0px));
+}
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bedrock);
+  color: var(--ink);
+  font: 400 19px/1.55 var(--font);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+[hidden] { display: none !important; }
+img { display: block; max-width: 100%; height: auto; }
+a { color: inherit; }
+h1, h2, h3, p, dl, dd, figure { margin: 0; }
+h1, h2 { font-weight: 700; letter-spacing: -.035em; word-spacing: .07em; line-height: 1.04; text-wrap: balance; }
+h2 { font-size: clamp(38px, 5vw, 68px); }
+:focus-visible { outline: 3px solid var(--vein); outline-offset: 3px; border-radius: 6px; }
+.quiet { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* Sky */
+.surface {
+  position: relative;
+  overflow: clip;
+  color: var(--ink-day);
+  background:
+    radial-gradient(70% 420px at 80% -60px, rgba(255, 255, 255, .85), transparent),
+    linear-gradient(var(--sky-top), var(--sky-low) 900px);
+}
+.top {
+  width: min(1180px, 100%);
+  margin-inline: auto;
+  box-sizing: border-box;
+  padding-left: var(--gutter-l);
+  padding-right: var(--gutter-r);
+}
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-block: 20px; }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-size: 19px; font-weight: 650; letter-spacing: -.01em; text-decoration: none; }
+.brand img { width: 30px; height: 30px; }
+.links { display: flex; gap: clamp(16px, 2.6vw, 30px); font-size: 16px; font-weight: 500; }
+.links a { color: var(--ink-day-2); text-decoration: none; }
+.links a:hover { color: var(--ink-day); }
+h1 { font-size: clamp(46px, 5.9vw, 88px); padding-top: clamp(12px, 2.4vw, 30px); }
+.pitch { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 24px 48px; padding-block: clamp(18px, 2.2vw, 28px) clamp(26px, 3.2vw, 44px); }
+.lead { flex: 1 1 380px; max-width: 590px; font-size: clamp(19px, 1.6vw, 22px); line-height: 1.45; color: var(--ink-day-2); }
+
+/* The download button and its counter, joined like a star button */
+.get { flex: 0 1 auto; min-width: 0; }
+.download {
+  display: inline-flex;
+  max-width: 100%;
+  border-radius: 14px;
+  box-shadow: 0 10px 28px -10px rgba(120, 60, 20, .5);
+  transition: box-shadow .5s ease;
+}
+.dl {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 24px;
+  border-radius: 14px 0 0 14px;
+  background: var(--vein);
+  color: var(--vein-ink);
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -.01em;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background .15s ease;
+}
+.dl:hover { background: #F2873F; }
+.dl svg { width: 20px; height: 20px; flex: none; }
+.dl:has(+ .count[hidden]) { border-radius: 14px; }
+.count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 20px;
+  border-radius: 0 14px 14px 0;
+  background: #fff;
+  color: var(--ink-day);
+  font-size: 16px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.count b { font: 700 21px/1 var(--font-figure); letter-spacing: -.01em; font-variant-numeric: tabular-nums; text-align: right; }
+.fine { padding-top: 12px; font-size: 15px; line-height: 1.4; color: var(--ink-day-2); }
+.after { padding-top: 6px; font-size: 15px; font-weight: 600; line-height: 1.4; }
+
+/* The window, half buried; scrolling moves the ground down off it */
+.dig {
+  --w: min(1120px, calc(100vw - 32px));
+  --h: calc(var(--w) * .7346);
+  --rest: calc(var(--h) * .44);
+  --dug: calc(var(--h) * .52);
+  --strata: clamp(520px, 56vw, 760px);
+  --head: 44px;
+  position: relative;
+  height: calc(var(--rest) + var(--dug) + var(--strata));
+}
+.relic {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: var(--w);
+  margin-left: calc(var(--w) / -2);
+  border-radius: clamp(10px, 1.7vw, 20px);
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(21, 23, 28, .1), 0 30px 70px -18px rgba(60, 50, 40, .45);
+  transform: rotate(-1.4deg);
+  transform-origin: 50% 100%;
+  will-change: transform;
+}
+.ground {
+  position: absolute;
+  z-index: 2;
+  top: calc(var(--rest) - var(--head));
+  left: 0;
+  width: 100%;
+  height: calc(var(--head) + var(--strata) + var(--dug));
+  will-change: transform;
+}
+.ground canvas { display: block; width: 100%; height: 100%; }
+.layer-card {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  left: 0;
+  padding: 7px 11px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, .74);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.35;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.layer-card b { display: block; font-weight: 600; }
+
+/* Below ground */
+.layer { position: relative; background: var(--tint); padding-block: clamp(96px, 12vw, 176px) clamp(84px, 10vw, 150px); }
+.seam { position: absolute; left: 0; bottom: 100%; display: block; width: 100%; height: 72px; margin-bottom: -1px; }
+.inner {
+  position: relative;
+  z-index: 2;
+  width: min(1180px, 100%);
+  margin-inline: auto;
+  box-sizing: border-box;
+  padding-left: var(--gutter-l);
+  padding-right: var(--gutter-r);
+}
+.spec { display: flex; flex-wrap: wrap; gap: 2px 10px; padding-bottom: 16px; font: 700 13px/1.3 var(--font-label); color: var(--spec); }
+.spec span { font-weight: 400; opacity: .8; }
+.copy > p:not(.spec) { color: var(--ink-2); }
+.copy > h2 + p { padding-top: 22px; }
+.split { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(36px, 5.5vw, 76px); align-items: center; }
+.split.flip { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+.split.flip .copy { order: 2; }
+.head { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 6fr); gap: 20px clamp(36px, 5.5vw, 76px); align-items: end; padding-bottom: clamp(30px, 4vw, 48px); }
+.head > p { color: var(--ink-2); }
+.shot {
+  overflow: hidden;
+  border-radius: 14px;
+  background: #16181D;
+  box-shadow: 0 0 0 1px var(--line), 0 34px 70px -24px rgba(0, 0, 0, .75);
+}
+.shot img { width: 100%; }
+
+.answers { padding-top: 26px; }
+.answers div { display: grid; grid-template-columns: minmax(0, 150px) minmax(0, 1fr); gap: 4px 18px; padding-block: 13px; border-top: 1px solid var(--line); font-size: 17px; line-height: 1.4; }
+.answers dt { font-weight: 600; }
+.answers dd { color: var(--ink-2); }
+.note { padding-top: 20px; font-size: 17px; }
+.pile { position: relative; padding-bottom: 15%; }
+.pile .over { position: absolute; right: 7%; bottom: 0; width: 72%; }
+
+.finder { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 22px; padding-bottom: 22px; }
+.field {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  flex: 1 1 300px;
+  min-width: 0;
+  padding: 13px 18px;
+  border-radius: 13px;
+  background: #1F2228;
+  box-shadow: 0 0 0 1px var(--line);
+  font-size: 18px;
+}
+.field svg { flex: none; width: 19px; height: 19px; color: #9AA0AB; }
+.field span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.field span::after { content: ""; display: inline-block; width: 2px; height: 1.05em; margin-left: 2px; vertical-align: -.16em; background: var(--vein); }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pills button {
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .08);
+  color: var(--ink);
+  font: 500 15px/1.2 var(--font);
+  cursor: pointer;
+  transition: background .15s ease;
+}
+.pills button:hover { background: rgba(255, 255, 255, .15); }
+.pills button[aria-pressed="true"] { background: var(--ink); color: var(--ink-day); }
+.also { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px clamp(36px, 5.5vw, 76px); padding-top: 30px; font-size: 17px; color: var(--ink-2); }
+.also strong { color: var(--ink); font-weight: 600; }
+
+.stat { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; padding-top: 26px; }
+.stat b { font: 700 clamp(44px, 5.4vw, 66px)/1 var(--font-figure); letter-spacing: -.02em; color: #E3AD48; font-variant-numeric: tabular-nums; }
+.stat span { flex: 1 1 170px; font-size: 16px; line-height: 1.35; color: var(--ink-2); }
+.tabs { padding-bottom: 14px; }
+
+.tools { display: flex; flex-wrap: wrap; gap: 6px 8px; padding: 24px 0 0; margin: 0; list-style: none; font: 500 14px/1.3 var(--font-label); color: var(--ink); }
+.tools li { padding: 5px 10px; border-radius: 7px; background: rgba(137, 163, 90, .16); }
+
+.twin { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 6fr); gap: clamp(16px, 2.4vw, 28px); padding-top: clamp(16px, 2.4vw, 28px); align-items: start; }
+
+.promise h2 { font-size: clamp(50px, 9.4vw, 136px); letter-spacing: -.045em; line-height: .98; }
+.nos { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px 28px; padding: clamp(34px, 4.6vw, 56px) 0 clamp(24px, 3vw, 36px); margin: 0; list-style: none; }
+.nos li { padding-top: 12px; border-top: 2px solid var(--line); font-size: clamp(19px, 1.9vw, 23px); font-weight: 600; letter-spacing: -.015em; line-height: 1.2; }
+.promise .body { max-width: 720px; color: var(--ink-2); }
+.promise .body + .body { padding-top: 14px; }
+
+.last { text-align: center; }
+.last h2 { font-size: clamp(42px, 6vw, 86px); }
+.last .sub { padding-top: 18px; color: var(--ink-2); }
+.last .get { padding-top: clamp(30px, 4vw, 44px); }
+.last .count { background: #23262C; color: var(--ink); }
+.last .fine, .last .after { color: var(--ink-2); }
+.last .download.lit { box-shadow: 0 0 0 1px rgba(232, 119, 46, .55), 0 0 44px 4px rgba(232, 119, 46, .5); }
+
+footer { position: relative; z-index: 2; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 28px; padding-top: clamp(60px, 8vw, 104px); font-size: 14px; line-height: 1.5; color: #8E8F92; text-align: left; }
+footer a { color: inherit; }
+footer p { flex: 1 1 380px; max-width: 640px; }
+
+#vein { position: fixed; z-index: 1; inset: 0; width: 100vw; height: 100vh; pointer-events: none; }
+.jump {
+  position: fixed;
+  z-index: 5;
+  top: calc(14px + env(safe-area-inset-top, 0px));
+  right: calc(16px + env(safe-area-inset-right, 0px));
+  padding: 10px 16px;
+  border-radius: 11px;
+  background: var(--vein);
+  color: var(--vein-ink);
+  font-size: 15px;
+  font-weight: 650;
+  text-decoration: none;
+  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, .6);
+  transition: opacity .2s ease, transform .2s ease;
+}
+.jump[data-away] { opacity: 0; transform: translateY(-8px); pointer-events: none; }
+
+@media (max-width: 1099px) { #vein { display: none; } }
+@media (max-width: 860px) {
+  .split, .split.flip, .head, .also { grid-template-columns: minmax(0, 1fr); }
+  .split.flip .copy { order: 0; }
+  .nos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .twin { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
+  body { font-size: 18px; }
+  .links a:not(:first-child) { display: none; }
+  .download { display: flex; }
+  .dl { flex: 1 1 auto; justify-content: center; padding: 15px 16px; font-size: 17px; }
+  .count { flex: 0 1 auto; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; padding: 0 14px; font-size: 13px; white-space: normal; line-height: 1.15; }
+  .count b { font-size: 18px; }
+  .count b:empty { display: none; }
+  .answers div { grid-template-columns: minmax(0, 1fr); }
+  .dig { --strata: 500px; --head: 30px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .relic { transform: none; }
+}
+</style>
+</head>
+<body>
+<header class="surface" id="top">
+  <div class="top">
+    <nav class="bar" aria-label="Main">
+      <a class="brand" href="#top"><img src="assets/icon.png" alt="" width="30" height="30">Unearth</a>
+      <div class="links">
+        <a href="#clean">What it does</a>
+        <a href="#private">Privacy</a>
+        <a href="https://github.com/ekimakes/unearth" data-source>Source code</a>
+      </div>
+    </nav>
+    <h1>Find anything. Free up the rest.</h1>
+    <div class="pitch">
+      <p class="lead">Unearth shows what's filling your Mac, clears it out safely, and finds any picture by what's in it. It's free, and nothing ever leaves your Mac.</p>
+      <div class="get" id="get">
+        <div class="download">
+          <a class="dl" href="https://github.com/ekimakes/unearth/releases/latest" data-download>
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10M5.5 9 10 13.5 14.5 9M4 17h12"/></svg>
+            Download for Mac
+          </a>
+          <span class="count" hidden><b></b> <span></span></span>
+        </div>
+        <p class="fine">Free. Requires macOS 26 or later.</p>
+        <p class="after" role="status" hidden></p>
+      </div>
+    </div>
+  </div>
+  <div class="dig" id="dig">
+    <figure class="relic" id="relic">
+      <img src="assets/home-window.webp" width="2396" height="1760" fetchpriority="high" alt="Unearth's Home screen: a storage bar for a 990 GB Mac, tiles for images, videos, screenshots and documents, and cards for what's worth cleaning up.">
+    </figure>
+    <div class="ground" id="ground">
+      <canvas id="strata" aria-hidden="true"></canvas>
+      <div class="layer-card" id="layer-card" hidden></div>
+    </div>
+  </div>
+</header>
+
+<main id="deep">
+  <section class="layer" id="clean" data-side="right" style="--tint:#262423; --spec:#C9B596">
+    <div class="inner split">
+      <div class="copy">
+        <p class="spec">Apps <span>45.04 GB</span></p>
+        <h2>Clean without fear.</h2>
+        <p>Unearth finds the duplicates, look-alike photos, forgotten downloads, old installers, old screenshots, big old videos and unused apps you stopped thinking about. Before you remove anything, it tells you what you're looking at.</p>
+        <dl class="answers">
+          <div><dt>What is this?</dt><dd>Temporary files Xcode creates while building your apps.</dd></div>
+          <div><dt>Will it come back?</dt><dd>Yes. Xcode rebuilds them the next time you build the project.</dd></div>
+          <div><dt>Is it safe?</dt><dd>Yes. Your next build just takes a little longer.</dd></div>
+        </dl>
+        <p class="note">Files go to the Trash, with Undo. Anything Unearth doesn't recognize is marked Careful and left unticked, and nothing happens without a click.</p>
+      </div>
+      <div class="pile">
+        <figure class="shot"><img src="assets/clean-overview.webp" width="1920" height="1424" loading="lazy" alt="The Clean up screen: piles for caches, big old videos, unused apps, forgotten downloads, old installers, duplicates, old screenshots and look-alike photos, each with its size."></figure>
+        <figure class="shot over"><img src="assets/clean-apps.webp" width="1920" height="1036" loading="lazy" alt="Unused apps: what each app is, whether it will come back, and whether it's safe to remove, above a list of apps with an Uninstall button."></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="layer" id="find" data-side="left" style="--tint:#2C201C; --seam:#B0603A; --spec:#D4865A">
+    <div class="inner">
+      <div class="head">
+        <div>
+          <p class="spec">Documents <span>150.62 GB</span></p>
+          <h2>Find anything.</h2>
+        </div>
+        <p>Search by name, by the words inside a picture, or by what's in it. Type the way you'd say it, and Unearth turns it into filters you can edit. Every result says why it came up.</p>
+      </div>
+      <div class="finder">
+        <div class="field" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="9" r="6"/><path d="m14 14 4 4"/></svg>
+          <span id="typed">invoice</span>
+        </div>
+        <div class="pills" role="group" aria-label="Example searches" data-switch="search-shot">
+          <button type="button" aria-pressed="true" data-src="assets/search-invoice.webp" data-query="invoice" data-alt="Search results for invoice: five screenshots of invoices, found by the text inside them.">Words in a picture</button>
+          <button type="button" aria-pressed="false" data-src="assets/search-aurora.webp" data-query="aurora" data-alt="Search results for aurora: photos of the northern lights, found by what's in them.">What's in a picture</button>
+          <button type="button" aria-pressed="false" data-src="assets/search-plain.webp" data-query="screenshots with invoice" data-alt="Search for screenshots with invoice, turned into a Screenshots filter plus the word invoice.">Plain language</button>
+          <button type="button" aria-pressed="false" data-src="assets/search-canva.webp" data-query="from canva" data-alt="Search for from Canva, turned into a filter showing every file downloaded from Canva.">Where it came from</button>
+        </div>
+      </div>
+      <figure class="shot"><img id="search-shot" src="assets/search-invoice.webp" width="1920" height="1010" loading="lazy" alt="Search results for invoice: five screenshots of invoices, found by the text inside them."></figure>
+      <div class="also">
+        <p><strong>It reads on your Mac.</strong> Text and objects are recognized by Apple's on-device frameworks, in the background, at low priority.</p>
+        <p><strong>Downloaded from.</strong> macOS records where every download came from, so everything you saved from ChatGPT, Canva, X or Slack is one click away.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="layer" id="images" data-side="left" style="--tint:#2B2319; --seam:#C98B2F; --spec:#E3AD48">
+    <div class="inner split flip">
+      <div class="copy">
+        <p class="spec">Photos &amp; Videos <span>229.01 GB</span></p>
+        <h2>50,000 images. No scrolling.</h2>
+        <p>Big folders open as an overview that fits what's in them: by date for photos, by folder for project files, by source for saved images. Crowded months split into days. Drag the rail to jump anywhere, and select a whole month or folder with one click.</p>
+        <div class="stat"><b>0.41 s</b><span>to open a test library of 52,700 images</span></div>
+      </div>
+      <div>
+        <div class="pills tabs" role="group" aria-label="Ways to view images" data-switch="images-shot">
+          <button type="button" aria-pressed="true" data-src="assets/images-months.webp" data-alt="Images grouped by month, each year in its own row, with a picture and a count for every month.">Months</button>
+          <button type="button" aria-pressed="false" data-src="assets/images-years.webp" data-alt="Images grouped into one large tile per year.">Years</button>
+          <button type="button" aria-pressed="false" data-src="assets/images-folders.webp" data-alt="Images grouped by folder, the biggest first.">Folders</button>
+          <button type="button" aria-pressed="false" data-src="assets/images-all.webp" data-alt="Every image in a grid with pinned month headers and a date rail down the right side.">All</button>
+        </div>
+        <figure class="shot"><img id="images-shot" src="assets/images-months.webp" width="1920" height="1400" loading="lazy" alt="Images grouped by month, each year in its own row, with a picture and a count for every month."></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="layer" id="developer" data-side="right" style="--tint:#1F2419; --seam:#5E7A3A; --spec:#89A35A">
+    <div class="inner split">
+      <div class="copy">
+        <p class="spec">Developer <span>44.61 GB</span></p>
+        <h2>Goes deeper for developers.</h2>
+        <p>Build files, package caches, simulators and AI models are often the biggest things on a developer's Mac. Unearth knows them by name. Docker and other virtual disks are reported with the command that shrinks them, and Unearth never deletes those itself.</p>
+        <ul class="tools" aria-label="Tools Unearth knows">
+          <li>Xcode</li><li>npm</li><li>pnpm</li><li>Yarn</li><li>pip</li><li>uv</li><li>Conda</li><li>Cargo</li><li>Gradle</li><li>Maven</li><li>CocoaPods</li><li>Homebrew</li><li>Hugging Face</li><li>Ollama</li><li>Playwright</li><li>Docker</li>
+        </ul>
+      </div>
+      <figure class="shot"><img src="assets/developer.webp" width="1920" height="1300" loading="lazy" alt="Developer and AI: Xcode build files, AI models, Docker Desktop with the command to clean it, and old node_modules, each marked Safe, Review or Careful."></figure>
+    </div>
+  </section>
+
+  <section class="layer" id="storage" data-side="right" style="--tint:#1F242B; --seam:#4C5A6B; --spec:#7F8EA0">
+    <div class="inner">
+      <div class="head">
+        <div>
+          <p class="spec">System Data <span>231.52 GB</span></p>
+          <h2>See where the space went.</h2>
+        </div>
+        <p>macOS files hundreds of gigabytes under System Data and leaves it there. Unearth splits it into named parts, such as swap, app data, caches and virtual machines, and says plainly what it couldn't identify.</p>
+      </div>
+      <figure class="shot"><img src="assets/storage.webp" width="1920" height="862" loading="lazy" alt="The Storage screen: the disk drawn as layers of earth, one for each kind of data, with 88 GB marked safe to dig out."></figure>
+      <div class="twin">
+        <figure class="shot"><img src="assets/system-data.webp" width="1920" height="1240" loading="lazy" alt="System Data, explained: swap, app data, app caches, AI models and virtual machines, each with a size and a plain description."></figure>
+        <figure class="shot"><img src="assets/disk-map.webp" width="1920" height="981" loading="lazy" alt="The Disk Map: a ring chart of the home folder that opens into any folder, next to a list of the biggest folders."></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="layer" id="private" data-side="right" style="--tint:#1A1C21; --seam:#3A3F4A; --spec:#9AA0AB">
+    <div class="inner promise">
+      <p class="spec">macOS <span>24.91 GB</span></p>
+      <h2>Nothing leaves your Mac.</h2>
+      <ul class="nos">
+        <li>No analytics</li>
+        <li>No account</li>
+        <li>No update checks</li>
+        <li>No crash reports</li>
+      </ul>
+      <p class="body">Unearth never connects to the internet. Your index, your thumbnails and everything it reads stay on your disk, and the source code is public, so anyone can check.</p>
+      <p class="body">Full Disk Access is optional. It lets Unearth measure Mail, Messages and iPhone backups. Without it, Unearth still works and some space shows as Not identified.</p>
+    </div>
+  </section>
+
+  <section class="layer" id="free" style="--tint:var(--bedrock); --seam:#2B2E35">
+    <div class="inner last">
+      <h2>Free. No trial, no subscription.</h2>
+      <p class="sub">Delete as much as you like without paying. There's nothing to unlock.</p>
+      <div class="get" id="get-last">
+        <div class="download" id="last-download">
+          <a class="dl" href="https://github.com/ekimakes/unearth/releases/latest" data-download>
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10M5.5 9 10 13.5 14.5 9M4 17h12"/></svg>
+            Download for Mac
+          </a>
+          <span class="count" hidden><b></b> <span></span></span>
+        </div>
+        <p class="fine">Free. Requires macOS 26 or later.</p>
+        <p class="after" role="status" hidden></p>
+      </div>
+      <footer>
+        <p>The screens on this page show a sample Mac, not anyone's real files. This site sets no cookies and has no analytics. The download count is GitHub's public number for the release file.</p>
+        <p style="flex:0 0 auto"><a href="https://github.com/ekimakes/unearth" data-source>Source code</a>, GPL-3.0</p>
+      </footer>
+    </div>
+  </section>
+</main>
+<nav class="quiet" aria-label="Layers of the sample disk">
+  <a href="#clean">Apps</a> <a href="#find">Documents</a> <a href="#images">Photos and videos</a> <a href="#developer">Developer</a> <a href="#storage">System Data</a> <a href="#private">macOS</a>
+</nav>
+<canvas id="vein" aria-hidden="true"></canvas>
+<a class="jump" id="jump" href="#free" data-away>Download</a>
+
+<script>
+// Everything about the release lives here.
+const RELEASE = { repo: 'ekimakes/unearth', file: 'Unearth.dmg' };
+
+const RELEASES_API = `https://api.github.com/repos/${RELEASE.repo}/releases?per_page=100`;
+const SAVED_KEY = 'unearth.downloads';
+const SAVED_FOR = 10 * 60 * 1000; // GitHub allows 60 requests an hour per visitor.
+
+/// What the page needs from GitHub's list of releases: downloads of every file of every release, and the newest
+/// release's version and size.
+function summarize(releases) {
+  let total = 0;
+  for (const release of releases) {
+    for (const asset of release.assets || []) total += asset.download_count || 0;
+  }
+  const newest = releases.find(release => !release.draft && !release.prerelease);
+  const file = newest && (newest.assets || []).find(asset => asset.name === RELEASE.file);
+  return { total, version: newest ? String(newest.tag_name || '').replace(/^v/, '') : '', bytes: file ? file.size : 0 };
+}
+
+(() => {
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const number = value => value.toLocaleString('en-US');
+
+  // MARK: Download buttons
+
+  for (const link of document.querySelectorAll('[data-download]')) {
+    link.href = `https://github.com/${RELEASE.repo}/releases/latest/download/${RELEASE.file}`;
+    link.addEventListener('click', () => {
+      const note = link.closest('.get').querySelector('.after');
+      note.textContent = `Open ${RELEASE.file}, then drag Unearth to Applications.`;
+      note.hidden = false;
+    });
+  }
+  for (const link of document.querySelectorAll('[data-source]')) link.href = `https://github.com/${RELEASE.repo}`;
+
+  function readSaved() {
+    try { return JSON.parse(localStorage.getItem(SAVED_KEY)); } catch { return null; }
+  }
+  function save(summary) {
+    try { localStorage.setItem(SAVED_KEY, JSON.stringify(summary)); } catch { /* A private window: fine without. */ }
+  }
+
+  let counted = false;
+  function countUp(figure, to) {
+    figure.dataset.to = to;
+    figure.textContent = number(to);
+    if (counted || calm || to < 20) return;
+    figure.style.minWidth = `${number(to).length * .62}em`;
+    const began = performance.now();
+    const step = now => {
+      if (figure.dataset.to !== String(to)) return; // A newer number has arrived.
+      const progress = Math.min(1, (now - began) / 1100);
+      figure.textContent = number(Math.round(to * (1 - (1 - progress) ** 3)));
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
+  function show({ total, version, bytes }) {
+    for (const box of document.querySelectorAll('.count')) {
+      const [figure, label] = box.children;
+      box.hidden = false;
+      if (total > 0) {
+        countUp(figure, total);
+        label.textContent = total === 1 ? 'download' : 'downloads';
+      } else {
+        figure.textContent = '';
+        figure.dataset.to = '';
+        label.textContent = 'Be the first to download';
+      }
+    }
+    counted = true;
+    const parts = [version && `Version ${version}`, bytes && `${Math.round(bytes / 1e6)} MB`].filter(Boolean);
+    if (parts.length) {
+      for (const fine of document.querySelectorAll('.fine')) fine.textContent = `Free. Requires macOS 26 or later. ${parts.join(', ')}.`;
+    }
+  }
+
+  async function loadDownloads() {
+    const saved = readSaved();
+    if (saved && Number.isFinite(saved.total)) show(saved);
+    if (saved && Date.now() - saved.at < SAVED_FOR) return;
+    try {
+      const answer = await fetch(RELEASES_API);
+      if (!answer.ok) return;
+      const summary = { ...summarize(await answer.json()), at: Date.now() };
+      save(summary);
+      show(summary);
+    } catch {
+      // Whatever is showing stays: the last number known, or no number at all. Never a made-up one.
+    }
+  }
+  loadDownloads();
+
+  // MARK: Pictures that switch
+
+  for (const group of document.querySelectorAll('[data-switch]')) {
+    const picture = document.getElementById(group.dataset.switch);
+    const typed = group.closest('.finder')?.querySelector('#typed');
+    for (const button of group.querySelectorAll('button')) {
+      button.addEventListener('pointerenter', () => { new Image().src = button.dataset.src; }, { once: true });
+      button.addEventListener('click', () => {
+        for (const other of group.querySelectorAll('button')) other.setAttribute('aria-pressed', String(other === button));
+        picture.src = button.dataset.src;
+        picture.alt = button.dataset.alt;
+        if (typed) typed.textContent = button.dataset.query;
+      });
+    }
+  }
+
+  // MARK: The ground
+
+  // The sample disk from the screenshots, top to bottom. `index` is the layer's place in StrataLayout.order, which seeds its edge.
+  const LAYERS = [
+    { name: 'Apps', size: 45.04, color: '#C9B596', index: 1, opens: 'clean' },
+    { name: 'Documents', size: 150.62, color: '#D4865A', index: 2, opens: 'find' },
+    { name: 'Photos & Videos', size: 229.01, color: '#E3AD48', index: 3, opens: 'images' },
+    { name: 'iPhone & iPad Backups', size: 53.14, color: '#C07F63', index: 4 },
+    { name: 'Developer', size: 44.61, color: '#89A35A', index: 5, opens: 'developer' },
+    { name: 'System Data', size: 231.52, color: '#7F8EA0', index: 6, opens: 'storage' },
+    { name: 'macOS', size: 24.91, color: '#5C6371', index: 7, opens: 'private' },
+    { name: 'Other', size: 24.47, color: '#A38C70', index: 8 },
+  ];
+  // Unnamed rock under the disk, on the way down to the dark.
+  const ROCK = [{ color: '#6E5C49', index: 9 }, { color: '#4A413A', index: 10 }, { color: '#2E2B2A', index: 11 }];
+  const USED = 803.32;
+  const SAFE = '88.24 GB';
+
+  /// StrataLayout.shares: thickness follows size, with a floor so every label fits.
+  function shares(sizes, floor) {
+    const floored = new Set();
+    for (;;) {
+      const rest = sizes.map((_, index) => index).filter(index => !floored.has(index));
+      const left = 1 - floor * floored.size;
+      const total = rest.reduce((sum, index) => sum + sizes[index], 0);
+      const result = sizes.map((size, index) => floored.has(index) ? floor : left * size / total);
+      const low = rest.filter(index => result[index] < floor);
+      if (!low.length) return result;
+      low.forEach(index => floored.add(index));
+    }
+  }
+
+  /// StrataLayout.wave: an edge's offsets, seeded by its layer, so the page and the app draw the same ground.
+  const waves = new Map();
+  function wave(index, amplitude, samples = 24) {
+    const known = waves.get(`${index} ${amplitude}`);
+    if (known) return known;
+    const mask = (1n << 64n) - 1n;
+    let state = (BigInt(index) * 0x9E3779B97F4A7C15n + 17n) & mask;
+    const random = () => {
+      state = (state + 0x9E3779B97F4A7C15n) & mask;
+      let value = state;
+      value = ((value ^ (value >> 30n)) * 0xBF58476D1CE4E5B9n) & mask;
+      value = ((value ^ (value >> 27n)) * 0x94D049BB133111EBn) & mask;
+      value ^= value >> 31n;
+      return Number(value >> 11n) / 2 ** 53;
+    };
+    const phases = [random(), random(), random()].map(value => value * 2 * Math.PI);
+    const frequencies = [1, 2 + random(), 3.5 + random()];
+    const weights = [.5, .3, .2];
+    const offsets = Array.from({ length: samples }, (_, sample) => {
+      const x = sample / (samples - 1);
+      return weights.reduce((sum, weight, part) => sum + weight * Math.sin(2 * Math.PI * frequencies[part] * x + phases[part]), 0) * amplitude;
+    });
+    waves.set(`${index} ${amplitude}`, offsets);
+    return offsets;
+  }
+
+  /// Follows points with a smooth curve, starting from wherever the path is.
+  function smooth(path, points) {
+    path.moveTo(points[0][0], points[0][1]);
+    for (let index = 1; index < points.length; index++) {
+      const [x, y] = points[index - 1], [nextX, nextY] = points[index];
+      path.quadraticCurveTo(x, y, (x + nextX) / 2, (y + nextY) / 2);
+    }
+    path.lineTo(...points[points.length - 1]);
+  }
+
+  const mix = (hex, amount) => {
+    const parts = [1, 3, 5].map(start => parseInt(hex.slice(start, start + 2), 16));
+    return `rgb(${parts.map(part => Math.round(part + (255 - part) * amount)).join(',')})`;
+  };
+  const isDark = hex => {
+    const [red, green, blue] = [1, 3, 5].map(start => parseInt(hex.slice(start, start + 2), 16));
+    return (.2126 * red + .7152 * green + .0722 * blue) / 255 < .45;
+  };
+
+  const dig = document.getElementById('dig');
+  const ground = document.getElementById('ground');
+  const canvas = document.getElementById('strata');
+  const card = document.getElementById('layer-card');
+  const relic = document.getElementById('relic');
+  let view = null;  // The ground's measurements, in CSS pixels.
+  let hovered = -1;
+  let veinFoot = 0; // Where the vein leaves the bottom of the ground, as a fraction of its width.
+
+  function measure() {
+    const lengthOf = name => {
+      const probe = document.createElement('div');
+      probe.style.cssText = `position:absolute;visibility:hidden;height:var(${name})`;
+      dig.append(probe);
+      const size = probe.getBoundingClientRect().height;
+      probe.remove();
+      return size;
+    };
+    const width = ground.clientWidth, height = ground.clientHeight;
+    const head = lengthOf('--head'), strata = lengthOf('--strata'), dug = lengthOf('--dug');
+    const thick = shares(LAYERS.map(layer => layer.size), .065);
+    const rock = strata * .17, depth = strata - rock;
+    let top = 0;
+    const bands = LAYERS.map((layer, index) => {
+      const band = { ...layer, top: head + top * depth, bottom: head + (top + thick[index]) * depth, share: thick[index] };
+      top += thick[index];
+      return band;
+    });
+    ROCK.forEach((layer, index) => {
+      const step = rock / ROCK.length;
+      bands.push({ ...layer, top: head + depth + index * step, bottom: head + depth + (index + 1) * step });
+    });
+    view = { width, height, head, strata, dug, bands, amplitude: Math.min(.024 * strata, 15) };
+  }
+
+  const labelFont = () => getComputedStyle(document.documentElement).getPropertyValue('--font-label');
+
+  const edgeOf = band => {
+    const offsets = wave(band.index, view.amplitude);
+    return offsets.map((offset, sample) => [view.width * sample / (offsets.length - 1), band.top + offset]);
+  };
+
+  function drawGround() {
+    const { width, height, bands } = view;
+    const scale = Math.min(devicePixelRatio || 1, 2);
+    if (canvas.width !== Math.round(width * scale) || canvas.height !== Math.round(height * scale)) {
+      canvas.width = Math.round(width * scale);
+      canvas.height = Math.round(height * scale);
+    }
+    const pen = canvas.getContext('2d');
+    pen.setTransform(scale, 0, 0, scale, 0, 0);
+    pen.clearRect(0, 0, width, height);
+
+    bands.forEach((band, index) => {
+      const edge = edgeOf(band);
+      const fill = new Path2D();
+      smooth(fill, edge);
+      fill.lineTo(width, height);
+      fill.lineTo(0, height);
+      fill.closePath();
+      pen.save();
+      if (index === 0) {
+        pen.shadowColor = 'rgba(50, 36, 20, .4)';
+        pen.shadowBlur = 26;
+        pen.shadowOffsetY = -5;
+      }
+      pen.fillStyle = hovered === index ? mix(band.color, .14) : band.color;
+      pen.fill(fill);
+      pen.restore();
+      // Faint sediment lines inside thicker layers.
+      const thickness = band.bottom - band.top;
+      if (thickness > 26) {
+        pen.strokeStyle = 'rgba(255, 255, 255, .13)';
+        pen.lineWidth = 1;
+        for (const fraction of [.38, .72]) {
+          const line = new Path2D();
+          smooth(line, edge.map(([x, y]) => [x, y + thickness * fraction]));
+          pen.stroke(line);
+        }
+      }
+    });
+
+    drawGroundVein(pen);
+
+    // Specimen labels at the left of each layer.
+    const left = Math.max(20, (width - 1180) / 2 + 20);
+    pen.textBaseline = 'middle';
+    for (const band of bands) {
+      if (!band.name) continue;
+      const y = (band.top + band.bottom) / 2 + 3;
+      pen.fillStyle = isDark(band.color) ? '#fff' : '#15171C';
+      pen.font = `700 13px ${labelFont()}`;
+      pen.fillText(band.name, left, y);
+      const nameWidth = pen.measureText(band.name).width;
+      pen.font = `400 13px ${labelFont()}`;
+      pen.globalAlpha = .78;
+      pen.fillText(`${band.size.toFixed(2)} GB`, left + nameWidth + 9, y);
+      pen.globalAlpha = 1;
+    }
+  }
+
+  function drawGroundVein(pen) {
+    const { width, height, dug, bands } = view;
+    const floor = height - dug; // The ground's visible bottom once it has slid all the way down.
+    const system = bands.find(band => band.name === 'System Data');
+    const middle = (system.top + system.bottom) / 2 + 6;
+    const left = Math.max(20, (width - 1180) / 2 + 20);
+    const start = Math.max(width * .3, left + 200), foot = Math.max(width * .52, start + 70);
+    veinFoot = foot / width;
+    const stop = matchMedia('(min-width: 1100px)').matches ? height + 4 : floor - 34;
+    const soft = value => { const t = Math.max(0, Math.min(1, value)); return t * t * (3 - 2 * t); };
+    const path = new Path2D();
+    path.moveTo(start, middle + 4);
+    path.bezierCurveTo(start + (foot - start) * .3, middle - 9, start + (foot - start) * .55, middle + 10, foot - 66, middle + 3);
+    path.bezierCurveTo(foot - 32, middle - 1, foot - 13, middle + 20, foot - 12, middle + 60);
+    // Down through the rock, ending straight so it meets the line below the ground.
+    const from = middle + 60;
+    for (let y = from; y <= stop; y += 4) {
+      const ease = soft((y - from) / 90);
+      const wander = 24 * Math.sin(y / 67) + 9 * Math.sin(y / 31 + 1);
+      path.lineTo(foot - 12 * (1 - ease) + ease * soft((floor - y) / 260) * wander, y);
+    }
+    pen.save();
+    pen.lineCap = 'round';
+    pen.lineJoin = 'round';
+    pen.strokeStyle = '#E8772E';
+    pen.shadowColor = '#E8772E';
+    pen.shadowBlur = 20;
+    pen.lineWidth = 6;
+    pen.stroke(path);
+    pen.shadowBlur = 0;
+    pen.strokeStyle = '#FFC9A3';
+    pen.lineWidth = 1.5;
+    pen.stroke(path);
+    pen.restore();
+    pen.fillStyle = '#fff';
+    pen.textBaseline = 'alphabetic';
+    pen.font = `700 13px ${labelFont()}`;
+    if (width > 640) pen.fillText(`Safe to dig out ${SAFE}`, start + 6, middle - 16);
+  }
+
+  function bandAt(x, y) {
+    let found = -1;
+    view.bands.forEach((band, index) => {
+      if (!band.name) return;
+      const offsets = wave(band.index, view.amplitude);
+      const position = Math.max(0, Math.min(1, x / view.width)) * (offsets.length - 1);
+      const sample = Math.min(Math.floor(position), offsets.length - 2);
+      const offset = offsets[sample] + (offsets[sample + 1] - offsets[sample]) * (position - sample);
+      if (y >= band.top + offset) found = index;
+    });
+    return found;
+  }
+
+  function setHovered(index, x, y) {
+    if (index !== hovered) {
+      hovered = index;
+      drawGround();
+      canvas.style.cursor = index >= 0 && view.bands[index].opens ? 'pointer' : '';
+    }
+    if (index < 0) { card.hidden = true; return; }
+    const band = view.bands[index];
+    const share = Math.round(band.size / USED * 100);
+    card.innerHTML = '';
+    const title = document.createElement('b');
+    title.textContent = `${band.name} ${band.size.toFixed(2)} GB`;
+    card.append(title, band.name === 'macOS' ? 'macOS itself, on its own sealed volume' : `${share}% of what's used`);
+    card.hidden = false;
+    card.style.transform = `translate(${Math.max(8, Math.min(x + 14, view.width - card.offsetWidth - 8))}px, ${Math.max(view.head, y - 46)}px)`;
+  }
+
+  canvas.addEventListener('pointermove', event => {
+    const box = canvas.getBoundingClientRect();
+    const x = event.clientX - box.left, y = event.clientY - box.top;
+    setHovered(y < view.head ? -1 : bandAt(x, y), x, y);
+  });
+  canvas.addEventListener('pointerleave', () => setHovered(-1, 0, 0));
+  canvas.addEventListener('click', event => {
+    const box = canvas.getBoundingClientRect();
+    const band = view.bands[bandAt(event.clientX - box.left, event.clientY - box.top)];
+    if (band && band.opens) document.getElementById(band.opens).scrollIntoView();
+  });
+
+  function unearth() {
+    const reach = view.dug * 1.45;
+    const progress = calm ? 1 : Math.min(1, Math.max(0, scrollY) / reach);
+    ground.style.transform = `translate3d(0, ${(progress * view.dug).toFixed(1)}px, 0)`;
+    if (!calm) relic.style.transform = `rotate(${(-1.4 * (1 - progress)).toFixed(3)}deg)`;
+  }
+
+  // MARK: Seams between the layers
+
+  function drawSeams() {
+    const SVG = 'http://www.w3.org/2000/svg';
+    const layers = [...document.querySelectorAll('.layer')];
+    layers.forEach((layer, order) => {
+      layer.querySelector(':scope > .seam')?.remove();
+      if (order === 0) return;
+      const style = getComputedStyle(layer);
+      const seam = style.getPropertyValue('--seam').trim();
+      const svg = document.createElementNS(SVG, 'svg');
+      svg.setAttribute('class', 'seam');
+      svg.setAttribute('viewBox', '0 0 1200 72');
+      svg.setAttribute('preserveAspectRatio', 'none');
+      svg.setAttribute('aria-hidden', 'true');
+      const shape = (shift, seed, thin) => {
+        const offsets = wave(seed, 16);
+        const points = offsets.map((offset, sample) => `${(1200 * sample / (offsets.length - 1)).toFixed(0)} ${(shift + offset).toFixed(1)}`);
+        return thin ? `M${points.join(' L')}` : `M${points.join(' L')} L1200 73 L0 73 Z`;
+      };
+      const add = (attributes) => {
+        const path = document.createElementNS(SVG, 'path');
+        for (const [name, value] of Object.entries(attributes)) path.setAttribute(name, value);
+        svg.append(path);
+      };
+      add({ d: shape(22, 20 + order, false), fill: seam, opacity: '.55' });
+      add({ d: shape(34, 40 + order, false), fill: seam });
+      add({ d: shape(46, 60 + order, false), fill: layer.style.getPropertyValue('--tint') === 'var(--bedrock)' ? '#0F1013' : style.getPropertyValue('--tint').trim() });
+      add({ d: shape(58, 80 + order, true), fill: 'none', stroke: 'rgba(255,255,255,.07)', 'stroke-width': '1', 'vector-effect': 'non-scaling-stroke' });
+      layer.prepend(svg);
+    });
+  }
+
+  // MARK: The vein
+
+  const vein = document.getElementById('vein');
+  const wide = matchMedia('(min-width: 1100px)');
+  const lastDownload = document.getElementById('last-download');
+  let line = [];
+
+  function plotVein() {
+    line = [];
+    if (!wide.matches) return;
+    const page = element => {
+      const box = element.getBoundingClientRect();
+      return { top: box.top + scrollY, bottom: box.bottom + scrollY, left: box.left, right: box.right, height: box.height };
+    };
+    const width = document.documentElement.clientWidth;
+    const surface = page(document.getElementById('top'));
+    const foot = veinFoot * width;
+    const stops = [[foot, surface.bottom - 2], [foot, surface.bottom + 30]];
+    for (const layer of document.querySelectorAll('.layer[data-side]')) {
+      const box = page(layer);
+      const inner = page(layer.querySelector('.inner'));
+      const margin = Math.max(30, inner.left - 54);
+      const x = layer.dataset.side === 'left' ? margin : width - margin;
+      const lean = layer.dataset.side === 'left' ? 1 : -1;
+      stops.push([x, box.top + Math.min(96, box.height * .11)]);
+      stops.push([x + lean * 40, box.top + box.height * .42]);
+      stops.push([x - lean * 12, box.top + box.height * .7]);
+      stops.push([x + lean * 22, box.bottom - 70]);
+    }
+    // Across above the last headline, down its left side, and into the button.
+    const bottom = page(document.getElementById('free'));
+    const edge = Math.max(30, page(document.querySelector('#free .inner')).left - 54);
+    const target = page(lastDownload);
+    const y = target.top + target.height / 2;
+    stops.push([width * .52, bottom.top + 20]);
+    stops.push([edge, bottom.top + 104]);
+    stops.push([edge - 6, (bottom.top + 104 + y) / 2]);
+    stops.push([edge + 56, y - 34]);
+    stops.push([target.left - 150, y - 6]);
+    stops.push([target.left + 2, y]);
+
+    // Straight runs between the stops, rounded by averaging each point with its neighbours, then a little wander
+    // so it reads as rock. Averaging can't overshoot, and the line keeps going down.
+    let points = [];
+    stops.slice(1).forEach(([x, y], index) => {
+      const [fromX, fromY] = stops[index];
+      const steps = Math.max(1, Math.ceil(Math.hypot(x - fromX, y - fromY) / 8));
+      for (let step = 0; step < steps; step++) points.push([fromX + (x - fromX) * step / steps, fromY + (y - fromY) * step / steps]);
+    });
+    points.push(stops[stops.length - 1]);
+    for (let pass = 0; pass < 3; pass++) {
+      points = points.map((_, index) => {
+        const reach = Math.min(12, index, points.length - 1 - index);
+        let x = 0, y = 0;
+        for (let near = index - reach; near <= index + reach; near++) {
+          x += points[near][0];
+          y += points[near][1];
+        }
+        return [x / (2 * reach + 1), y / (2 * reach + 1)];
+      });
+    }
+    line = points.map(([x, y], index) => {
+      const fade = Math.min(1, index / 70, (points.length - 1 - index) / 90);
+      return [Math.max(16, Math.min(width - 16, x + fade * (12 * Math.sin(y / 113) + 6 * Math.sin(y / 47 + 1)))), y];
+    });
+  }
+
+  function paintVein() {
+    if (!wide.matches) return;
+    const scale = Math.min(devicePixelRatio || 1, 2);
+    const width = innerWidth, height = innerHeight;
+    if (vein.width !== Math.round(width * scale) || vein.height !== Math.round(height * scale)) {
+      vein.width = Math.round(width * scale);
+      vein.height = Math.round(height * scale);
+    }
+    const pen = vein.getContext('2d');
+    pen.setTransform(scale, 0, 0, scale, 0, 0);
+    pen.clearRect(0, 0, width, height);
+    if (line.length < 2) return;
+    const top = scrollY;
+    const atEnd = top + height >= document.documentElement.scrollHeight - 4;
+    const tip = calm || atEnd ? Infinity : top + height * .74;
+    const end = upperBound(Math.min(tip, top + height + 30));
+    const start = Math.max(0, upperBound(top - 30) - 1);
+    if (end <= start + 1) return;
+    pen.translate(0, -top);
+    const path = new Path2D();
+    path.moveTo(line[start][0], line[start][1]);
+    for (let index = start + 1; index < end; index++) path.lineTo(line[index][0], line[index][1]);
+    pen.lineCap = 'round';
+    pen.lineJoin = 'round';
+    for (const [lineWidth, color, alpha] of [[20, '#E8772E', .07], [12, '#E8772E', .12], [6, '#E8772E', 1], [1.5, '#FFC9A3', 1]]) {
+      pen.lineWidth = lineWidth;
+      pen.strokeStyle = color;
+      pen.globalAlpha = alpha;
+      pen.stroke(path);
+    }
+    pen.globalAlpha = 1;
+    const finished = end >= line.length;
+    lastDownload.classList.toggle('lit', finished);
+    if (!finished && tip <= top + height) {
+      const [x, y] = line[end - 1];
+      const glow = pen.createRadialGradient(x, y, 0, x, y, 26);
+      glow.addColorStop(0, 'rgba(255, 201, 163, .95)');
+      glow.addColorStop(.25, 'rgba(232, 119, 46, .55)');
+      glow.addColorStop(1, 'rgba(232, 119, 46, 0)');
+      pen.fillStyle = glow;
+      pen.beginPath();
+      pen.arc(x, y, 26, 0, 2 * Math.PI);
+      pen.fill();
+    }
+  }
+
+  /// The first index whose point is below `y`: the line only ever goes down.
+  function upperBound(y) {
+    let low = 0, high = line.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if (line[middle][1] <= y) low = middle + 1; else high = middle;
+    }
+    return low;
+  }
+
+  // MARK: Scrolling and resizing
+
+  let queued = false;
+  function frame() {
+    queued = false;
+    unearth();
+    paintVein();
+  }
+  addEventListener('scroll', () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(frame);
+  }, { passive: true });
+
+  function layOut() {
+    measure();
+    drawGround();
+    plotVein();
+    frame();
+  }
+  drawSeams();
+  layOut();
+  let resizing = 0;
+  const relay = () => {
+    cancelAnimationFrame(resizing);
+    resizing = requestAnimationFrame(layOut);
+  };
+  addEventListener('resize', relay);
+  addEventListener('load', relay);
+  new ResizeObserver(relay).observe(document.getElementById('deep'));
+
+  // The small button stays away while a big one is on screen.
+  const jump = document.getElementById('jump');
+  const onScreen = new Set();
+  const watcher = new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) onScreen.add(entry.target); else onScreen.delete(entry.target);
+    }
+    jump.toggleAttribute('data-away', onScreen.size > 0);
+  });
+  watcher.observe(document.getElementById('get'));
+  watcher.observe(document.getElementById('get-last'));
+})();
+</script>
+</body>
+</html>

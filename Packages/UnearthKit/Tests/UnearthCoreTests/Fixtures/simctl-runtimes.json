@@ -1,0 +1,26 @@
+{
+  "11111111-1111-4111-8111-111111111111" : {
+    "build" : "21F79",
+    "deletable" : true,
+    "identifier" : "11111111-1111-4111-8111-111111111111",
+    "kind" : "Disk Image",
+    "lastUsedAt" : "2025-03-11T13:00:32Z",
+    "platformIdentifier" : "com.apple.platform.iphonesimulator",
+    "runtimeIdentifier" : "com.apple.CoreSimulator.SimRuntime.iOS-17-5",
+    "sizeBytes" : 7516192768,
+    "state" : "Ready",
+    "version" : "17.5"
+  },
+  "22222222-2222-4222-8222-222222222222" : {
+    "build" : "23E254a",
+    "deletable" : false,
+    "identifier" : "22222222-2222-4222-8222-222222222222",
+    "kind" : "Patchable Cryptex Disk Image",
+    "lastUsedAt" : "2026-10-11T13:01:02Z",
+    "platformIdentifier" : "com.apple.platform.iphonesimulator",
+    "runtimeIdentifier" : "com.apple.CoreSimulator.SimRuntime.iOS-26-4",
+    "sizeBytes" : 8485014416,
+    "state" : "Ready",
+    "version" : "26.4.1"
+  }
+}

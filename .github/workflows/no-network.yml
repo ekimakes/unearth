@@ -1,0 +1,21 @@
+name: No network
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail if networking APIs appear in the app
+        run: |
+          pattern='URLSession|URLRequest|NWConnection|NWListener|NWPathMonitor|NWBrowser|CFNetwork|CFSocket|WKWebView|import Network|socket\('
+          if grep -rnE "$pattern" Unearth Packages/UnearthKit/Sources; then
+            echo "Unearth must never connect to the network. Remove the lines above."
+            exit 1
+          fi
