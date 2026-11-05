@@ -16,26 +16,30 @@
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <style>
-/* Clean and light, in the app's own colors: one video at the top, then one idea per card. */
+/* Clean and light, in the app's own colors. Each idea gets its own band: a headline, a line under it, then the app.
+   Pictures have twice the pixels of their width here, so on a Retina screen they're as sharp as the app itself. */
 :root {
   color-scheme: light;
-  --canvas: #F6F7F9;
   --surface: #FFFFFF;
   --ink: #15171C;
   --ink-2: #6B7280;
-  --line: #E8EAEF;
   --sky: #DCEAF4;
+  --sky-low: #EDF4F9;
+  --sand: #F7F2E8;
   --orange: #E8772E;
   --orange-ink: #1C1006;
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Roboto, sans-serif;
   --font-figure: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
   --gutter-l: max(20px, env(safe-area-inset-left, 0px));
   --gutter-r: max(20px, env(safe-area-inset-right, 0px));
+  --page: 1198px;
+  --band: clamp(72px, 10vw, 128px);
+  --overlap: clamp(48px, 13vw, 190px);
 }
 html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
-  background: var(--canvas);
+  background: var(--sky);
   color: var(--ink);
   font: 400 18px/1.45 var(--font);
   -webkit-font-smoothing: antialiased;
@@ -49,17 +53,16 @@ h1, h2 { font-weight: 700; letter-spacing: -.03em; word-spacing: .06em; text-wra
 :focus-visible { outline: 3px solid var(--orange); outline-offset: 3px; border-radius: 6px; }
 
 .top {
-  background: linear-gradient(var(--sky), var(--canvas) 680px);
+  background: linear-gradient(var(--sky), var(--sky-low));
   padding-left: var(--gutter-l);
   padding-right: var(--gutter-r);
-  padding-bottom: clamp(48px, 7vw, 88px);
   text-align: center;
 }
 .bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  width: min(1120px, 100%);
+  width: min(var(--page), 100%);
   margin-inline: auto;
   padding-block: 20px;
 }
@@ -67,8 +70,8 @@ h1, h2 { font-weight: 700; letter-spacing: -.03em; word-spacing: .06em; text-wra
 .brand img { width: 30px; height: 30px; }
 .link { color: var(--ink-2); font-size: 16px; font-weight: 500; text-decoration: none; }
 .link:hover { color: var(--ink); }
-h1 { font-size: clamp(44px, 6.6vw, 88px); line-height: 1.04; padding-top: clamp(20px, 4vw, 52px); }
-.lead { max-width: 560px; margin-inline: auto; padding-top: 18px; font-size: clamp(19px, 1.7vw, 22px); line-height: 1.4; color: var(--ink-2); }
+h1 { font-size: clamp(46px, 7.4vw, 96px); line-height: 1.02; padding-top: clamp(24px, 4vw, 52px); }
+.lead { max-width: 560px; margin-inline: auto; padding-top: 20px; font-size: clamp(19px, 1.7vw, 22px); line-height: 1.4; color: var(--ink-2); }
 
 /* The download button and its counter, joined like a star button */
 .get { padding-top: 30px; }
@@ -104,72 +107,51 @@ h1 { font-size: clamp(44px, 6.6vw, 88px); line-height: 1.04; padding-top: clamp(
   font-variant-numeric: tabular-nums;
 }
 .count b { font: 700 21px/1 var(--font-figure); letter-spacing: -.01em; font-variant-numeric: tabular-nums; text-align: right; }
-.fine { padding-top: 12px; font-size: 15px; color: var(--ink-2); }
+.fine { padding-top: 12px; font-size: 15px; color: var(--ink-2); text-wrap: balance; }
 .after { padding-top: 6px; font-size: 15px; font-weight: 600; }
 
+/* The video hangs over the edge of the sky into the first band. */
 .preview {
   position: relative;
-  width: min(1120px, 100%);
-  margin: clamp(36px, 5vw, 60px) auto 0;
+  z-index: 1;
+  width: min(var(--page), 100%);
+  margin: clamp(36px, 5vw, 56px) auto calc(var(--overlap) * -1);
   overflow: hidden;
   border-radius: clamp(10px, 1.7vw, 20px);
   box-shadow: 0 0 0 1px rgba(21, 23, 28, .08), 0 40px 80px -30px rgba(40, 50, 70, .35);
 }
-.caption {
-  position: absolute;
-  top: clamp(8px, 1.5vw, 18px);
-  right: clamp(8px, 1.5vw, 18px);
-  padding: 7px 13px;
-  border-radius: 999px;
-  background: rgba(21, 23, 28, .86);
-  color: #fff;
-  font-size: clamp(12px, 1.2vw, 15px);
-  font-weight: 600;
-  letter-spacing: -.005em;
-}
+.preview video { width: 100%; aspect-ratio: 2396 / 1498; }
 
-.cards {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: clamp(14px, 1.7vw, 20px);
-  box-sizing: border-box;
-  width: min(1160px, 100%);
-  margin-inline: auto;
-  padding-left: var(--gutter-l);
-  padding-right: var(--gutter-r);
-}
-.card {
-  display: flex;
-  flex-direction: column;
-  grid-column: span 6;
-  overflow: hidden;
-  border-radius: 24px;
+.part {
+  padding: var(--band) var(--gutter-r) var(--band) var(--gutter-l);
   background: var(--surface);
-  box-shadow: 0 0 0 1px var(--line);
+  text-align: center;
 }
-.card.five { grid-column: span 5; }
-.card.seven { grid-column: span 7; }
-.card h2 { padding: clamp(24px, 2.8vw, 34px) clamp(24px, 2.8vw, 34px) 0; font-size: clamp(25px, 2.7vw, 34px); line-height: 1.1; }
-.card p { padding: 8px clamp(24px, 2.8vw, 34px) 0; color: var(--ink-2); }
-.shot { display: flex; flex: 1; flex-direction: column; justify-content: flex-end; padding-top: clamp(22px, 2.6vw, 30px); }
+.part.first { padding-top: calc(var(--overlap) + var(--band)); }
+.part.sand { background: var(--sand); }
+.part.sky { background: var(--sky-low); }
+.part h2 { font-size: clamp(36px, 5.2vw, 62px); line-height: 1.06; }
+.part p { max-width: 640px; margin-inline: auto; padding-top: 14px; font-size: clamp(19px, 1.8vw, 22px); line-height: 1.38; color: var(--ink-2); }
+.shot { display: block; margin-top: clamp(36px, 4.6vw, 56px); }
 .shot img {
-  width: calc(100% - clamp(24px, 2.8vw, 34px));
-  max-width: none;
-  margin-left: auto;
-  border-radius: 14px 0 0 0;
-  box-shadow: 0 0 0 1px var(--line);
+  margin-inline: auto;
+  border-radius: clamp(10px, 1.4vw, 16px);
+  box-shadow: 0 0 0 1px rgba(21, 23, 28, .07), 0 30px 60px -30px rgba(40, 50, 70, .32);
 }
-.promise { background: var(--ink); color: #fff; box-shadow: none; }
-.promise p { color: #A9ADB6; }
-.promise .ground { display: block; flex: 1; width: 100%; min-height: 90px; margin-top: 24px; }
 
-.last { padding: clamp(72px, 10vw, 120px) 20px clamp(48px, 7vw, 72px); text-align: center; }
-.last h2 { font-size: clamp(38px, 5vw, 60px); line-height: 1.05; }
+.part.deep { padding-inline: 0; padding-bottom: 0; background: var(--ink); color: #fff; }
+.part.deep h2, .part.deep p { padding-left: var(--gutter-l); padding-right: var(--gutter-r); }
+.part.deep p { color: #A9ADB6; }
+.ground { display: block; width: 100%; height: clamp(110px, 17vw, 240px); margin-top: clamp(40px, 6vw, 72px); }
+
+.last { padding: var(--band) 20px clamp(48px, 7vw, 72px); text-align: center; }
+.last h2 { font-size: clamp(38px, 5.2vw, 62px); line-height: 1.05; }
 .last .get { padding-top: 26px; }
+.last .count { background: var(--surface); }
 
 footer {
   box-sizing: border-box;
-  width: min(1120px, 100%);
+  width: min(var(--page), 100%);
   margin-inline: auto;
   padding: 0 var(--gutter-r) 36px var(--gutter-l);
   font-size: 14px;
@@ -177,11 +159,6 @@ footer {
   text-align: center;
 }
 
-@media (max-width: 860px) {
-  .card, .card.five, .card.seven { grid-column: span 12; }
-  .promise { order: 1; }
-  .promise .ground { min-height: 120px; }
-}
 @media (max-width: 560px) {
   .download { display: flex; }
   .dl { flex: 1 1 auto; justify-content: center; padding: 15px 16px; font-size: 17px; }
@@ -200,7 +177,7 @@ footer {
     <a class="brand" href="#top"><img src="assets/icon.png" alt="" width="30" height="30">Unearth</a>
     <a class="link" href="https://github.com/ekimakes/unearth" data-source>GitHub</a>
   </nav>
-  <h1>Find anything. Free up the rest.</h1>
+  <h1>Find anything.<br>Free up the rest.</h1>
   <p class="lead">The free Mac app that shows what's filling your disk and helps you clear it.</p>
   <div class="get">
     <div class="download">
@@ -214,42 +191,59 @@ footer {
     <p class="after" role="status" hidden></p>
   </div>
   <figure class="preview">
-    <video id="preview" src="assets/hero.mp4" poster="assets/hero-poster.webp" width="1920" height="1218" autoplay muted loop playsinline preload="auto" aria-label="The app in use: searching for mountain finds every mountain photo, ticking three folders selects them for the Trash, and the Storage screen shows what's safe to remove."></video>
-    <figcaption class="caption" id="caption" aria-hidden="true" hidden></figcaption>
+    <video id="preview" poster="assets/hero-poster.webp" width="1198" height="749" autoplay muted loop playsinline preload="auto" aria-label="The app in use: searching for mountain finds every mountain photo, ticking three folders selects them for the Trash, and the Storage and Clean Up screens show what's safe to remove.">
+      <source src="assets/hero-hevc.mp4" type='video/mp4; codecs="hvc1.1.6.L150.B0"'>
+      <source src="assets/hero.mp4" type="video/mp4">
+    </video>
   </figure>
 </header>
 
-<main class="cards">
-  <article class="card">
-    <h2>Search inside your photos</h2>
-    <p>Find any picture by what's in it.</p>
-    <div class="shot"><img src="assets/card-search.webp" width="1400" height="909" loading="lazy" alt="A search for mountain, with 22 mountain photos found."></div>
-  </article>
-  <article class="card">
-    <h2>Clear whole folders</h2>
-    <p>Tick them and move them to the Trash.</p>
-    <div class="shot"><img src="assets/card-folders.webp" width="1400" height="909" loading="lazy" alt="Three folders ticked, 20,400 images selected, ready to move to the Trash."></div>
-  </article>
-  <article class="card seven">
-    <h2>See where your space went</h2>
-    <p>Your whole disk, layer by layer.</p>
-    <div class="shot"><img src="assets/card-storage.webp" width="1500" height="668" loading="lazy" alt="The disk drawn as layers of earth, with 72 GB safe to remove."></div>
-  </article>
-  <article class="card five">
-    <h2>Clean up without worry</h2>
-    <p>Every item says if it's safe to remove.</p>
-    <div class="shot"><img src="assets/card-cleanup.webp" width="1100" height="711" loading="lazy" alt="Cards for caches, big old videos, forgotten downloads and old installers, each with its size."></div>
-  </article>
-  <article class="card five promise">
-    <h2>Nothing leaves your Mac</h2>
-    <p>No account. No tracking. Free.</p>
-    <svg class="ground" viewBox="0 0 700 120" preserveAspectRatio="none" aria-hidden="true"><path d="M0 34C110 12 220 48 350 30S590 8 700 28V120H0Z" fill="#C9B596"/><path d="M0 58C130 38 240 72 370 54S600 36 700 52V120H0Z" fill="#E3AD48"/><path d="M0 82C120 64 250 96 380 78S610 62 700 76V120H0Z" fill="#D4865A"/><path d="M0 104C140 90 260 116 390 100S620 88 700 100V120H0Z" fill="#5C6371"/></svg>
-  </article>
-  <article class="card seven">
-    <h2>Find your downloads</h2>
-    <p>Sorted by where they came from.</p>
-    <div class="shot"><img src="assets/card-downloads.webp" width="1100" height="218" loading="lazy" alt="Downloads grouped by source: ChatGPT, Canva, X, Gmail, Slack and WhatsApp."></div>
-  </article>
+<main>
+  <section class="part first">
+    <h2>Find any photo by what's in it.</h2>
+    <p>Type what you remember. Unearth looks inside your pictures.</p>
+    <picture class="shot">
+      <source media="(max-width: 640px)" srcset="assets/search-phone.webp" width="486" height="542">
+      <img src="assets/search.webp" width="1065" height="660" loading="lazy" alt="A search for mountain, with 22 mountain photos found.">
+    </picture>
+  </section>
+  <section class="part sand">
+    <h2>Clear whole folders at once.</h2>
+    <p>Tick the ones you don't need and move them to the Trash together.</p>
+    <picture class="shot">
+      <source media="(max-width: 640px)" srcset="assets/folders-phone.webp" width="502" height="380">
+      <img src="assets/folders.webp" width="1198" height="749" loading="lazy" alt="Three folders ticked, 20,400 images selected, ready to move to the Trash.">
+    </picture>
+  </section>
+  <section class="part">
+    <h2>See where your space went.</h2>
+    <p>Your whole disk, layer by layer, so you know what's taking up room.</p>
+    <picture class="shot">
+      <source media="(max-width: 640px)" srcset="assets/storage-phone.webp" width="490" height="330">
+      <img src="assets/storage.webp" width="960" height="590" loading="lazy" alt="The disk drawn as layers of earth, with 72 GB safe to remove.">
+    </picture>
+  </section>
+  <section class="part sky">
+    <h2>Clean up without worry.</h2>
+    <p>Every item tells you what it is and whether it's safe to remove.</p>
+    <picture class="shot">
+      <source media="(max-width: 640px)" srcset="assets/cleanup-phone.webp" width="502" height="325">
+      <img src="assets/cleanup.webp" width="960" height="468" loading="lazy" alt="Cards for caches, big old videos, unused apps, forgotten downloads, old installers and duplicates, each with its size.">
+    </picture>
+  </section>
+  <section class="part">
+    <h2>Know where your downloads came from.</h2>
+    <p>ChatGPT, Canva, X, Gmail and more, each with its own place.</p>
+    <picture class="shot">
+      <source media="(max-width: 640px)" srcset="assets/downloads-phone.webp" width="448" height="300">
+      <img src="assets/downloads.webp" width="960" height="300" loading="lazy" alt="Downloads grouped by source, with the logos of ChatGPT, Canva, X, Gmail, Slack and WhatsApp.">
+    </picture>
+  </section>
+  <section class="part deep">
+    <h2>Nothing leaves your Mac.</h2>
+    <p>Unearth never connects to the internet. No account. No tracking.</p>
+    <svg class="ground" viewBox="0 0 1400 240" preserveAspectRatio="none" aria-hidden="true"><path d="M0 40C220 8 440 76 700 44S1180 4 1400 36V240H0Z" fill="#C9B596"/><path d="M0 88C260 48 480 124 740 92S1200 56 1400 84V240H0Z" fill="#E3AD48"/><path d="M0 136C240 100 500 172 760 140S1220 108 1400 132V240H0Z" fill="#D4865A"/><path d="M0 186C280 158 520 212 780 180S1240 158 1400 180V240H0Z" fill="#5C6371"/></svg>
+  </section>
 </main>
 
 <section class="last">
@@ -370,18 +364,12 @@ function summarize(releases) {
 
   // It plays only while it's on screen, and not at all for people who asked for less motion.
   const preview = document.getElementById('preview');
-  const caption = document.getElementById('caption');
-  const scenes = [[0, 'Search by what\'s in a photo'], [6.1, 'Select whole folders'], [11.5, 'See where your space went'], [15.4, 'Clean up safely'], [18.2, 'Free, and private']];
   if (calm) {
     preview.pause();
   } else {
     new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting) preview.play().catch(() => {}); else preview.pause();
     }).observe(preview);
-    preview.addEventListener('timeupdate', () => {
-      caption.textContent = scenes.findLast(([start]) => start <= preview.currentTime)[1];
-      caption.hidden = false;
-    });
   }
 })();
 </script>

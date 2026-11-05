@@ -1,6 +1,6 @@
 # Unearth's website
 
-One static page: `index.html`, with its CSS and JavaScript inside it, and the pictures in `assets/`. There's no build step, no cookies, no analytics, no third-party scripts and no web fonts. Any static host can serve this folder as it is.
+One static page: `index.html`, with its CSS and JavaScript inside it, and the pictures in `assets/`. Each picture is twice as wide in pixels as it appears on the page, so it stays sharp on a Retina screen. The `-phone` versions show less of the screen, so the words stay readable on a small display. There's no build step, no cookies, no analytics, no third-party scripts and no web fonts. Any static host can serve this folder as it is.
 
 ## Preview it
 
@@ -27,4 +27,4 @@ The number next to the button is GitHub's own count. On load, the page asks `htt
 
 ## The pictures
 
-Every picture in `assets/`, and `hero.mp4`, shows the real app, rendered from a made-up sample Mac: free photos from [Unsplash](https://unsplash.com/license) (through [Lorem Picsum](https://picsum.photos)), fake invoices and four sample apps. None of it is anyone's real files, and photos of people were left out. Sizes and Library counts were scaled up so the sample reads as a normal 1 TB Mac, which is why the footer says the screens show a sample Mac. The pointer and the typing in the video are added on top of those screens. `hero.webp` is the same video as a small animated picture, for the README on GitHub.
+Every picture in `assets/`, and `hero.mp4`, shows the real app, rendered from a made-up sample Mac: free photos from [Unsplash](https://unsplash.com/license) (through [Lorem Picsum](https://picsum.photos)), fake invoices and four sample apps. None of it is anyone's real files, and photos of people were left out. Sizes and Library counts were scaled up so the sample reads as a normal 1 TB Mac, which is why the footer says the screens show a sample Mac. The pointer and the typing in the video are added on top of those screens. `hero-hevc.mp4` is the same video in a smaller format for browsers that play it, and `hero.webp` is the animated version for the README on GitHub.

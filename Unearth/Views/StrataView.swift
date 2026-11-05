@@ -1,8 +1,8 @@
 import SwiftUI
 import UnearthCore
 
-/// The disk drawn as layers of earth under a sky of free space, with the space Unearth can safely free as a
-/// glowing vein. Hovering a layer shows its size; clicking one opens what explains it.
+/// The disk drawn as layers of earth under a sky of free space. Hovering a layer shows its size; clicking one opens
+/// what explains it.
 struct StrataView: View {
     static let height: CGFloat = 320
     /// Thin enough to stay honest about small categories, thick enough for a label.
@@ -14,9 +14,7 @@ struct StrataView: View {
     let onOpen: (StorageCategory) -> Void
     @State private var hovered: StrataLayer?
     @State private var pointer: CGPoint = .zero
-    @State private var glow = 0.0
     @Environment(\.colorScheme) private var scheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var layers: [StrataLayer] {
         StrataLayout.layers(segments: breakdown.segments, free: breakdown.free, minimumShare: Self.minimumShare)
@@ -29,12 +27,6 @@ struct StrataView: View {
             ZStack(alignment: .topLeading) {
                 Canvas { context, size in
                     draw(layers, in: &context, size: size)
-                }
-                if let vein = vein(in: layers, size: size) {
-                    vein.stroke(Color.unearth, style: StrokeStyle(lineWidth: 18, lineCap: .round))
-                        .blur(radius: 7)
-                        .opacity(glow * 0.55)
-                    vein.stroke(Color.unearth, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                 }
                 ForEach(layers.indices, id: \.self) { index in
                     label(for: layers[index], above: index + 1 < layers.count ? layers[index + 1] : nil, size: size)
@@ -63,12 +55,6 @@ struct StrataView: View {
         }
         .frame(height: Self.height)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .onAppear {
-            // The vein glows once as the screen opens, then settles.
-            guard !reduceMotion else { glow = 0.45; return }
-            withAnimation(.easeOut(duration: 1.1)) { glow = 1 }
-            withAnimation(.easeInOut(duration: 1.4).delay(1.1)) { glow = 0.45 }
-        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilitySummary(layers))
         .accessibilityActions {
@@ -140,24 +126,6 @@ struct StrataView: View {
 
     private func layer(at point: CGPoint, in layers: [StrataLayer], size: CGSize) -> StrataLayer? {
         layers.last { top(of: $0, at: point.x, size: size) <= point.y }
-    }
-
-    /// The vein runs through the layer holding most of what's safe to free: System Data's caches, or Developer's.
-    private func vein(in layers: [StrataLayer], size: CGSize) -> Path? {
-        guard safeToFree > 0, breakdown.used > 0,
-              let layer = layers.first(where: { $0.category == .systemData }) ?? layers.first(where: { $0.category == .developer })
-                ?? layers.filter({ $0.category != nil }).max(by: { $0.bytes < $1.bytes }) else { return nil }
-        let share = min(0.7, max(0.2, Double(safeToFree) / Double(breakdown.used)))
-        let start = size.width * 0.3
-        let end = min(size.width - 280, start + size.width * share)
-        guard end > start + 40 else { return nil }
-        let middle = (layer.top + layer.bottom) / 2 * size.height + 6
-        var path = Path()
-        path.move(to: CGPoint(x: start, y: middle + 4))
-        path.addCurve(to: CGPoint(x: end, y: middle - 3),
-                      control1: CGPoint(x: start + (end - start) * 0.35, y: middle - 9),
-                      control2: CGPoint(x: start + (end - start) * 0.65, y: middle + 10))
-        return path
     }
 
     // MARK: - Labels and cards

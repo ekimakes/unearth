@@ -14,19 +14,19 @@ Nothing ever leaves your Mac.</p>
 
 Find any picture by what's in it, by the words in it, or by name, in plain language: `screenshots with invoice`, `pdfs from last week`, `from canva`. Every result says why it came up.
 
-![A search for mountain, with 22 mountain photos found](website/assets/card-search.webp)
+![A search for mountain, with 22 mountain photos found](website/assets/search.webp)
 
 ## Clear whole folders
 
 A folder of 50,000 images opens as an overview by date, folder or download source. Tick as many as you like and move them to the Trash together.
 
-![Three folders ticked, 20,400 images selected, ready to move to the Trash](website/assets/card-folders.webp)
+![Three folders ticked, 20,400 images selected, ready to move to the Trash](website/assets/folders.webp)
 
 ## See where your space went
 
 Your disk, drawn as layers of earth. System Data is split into named parts, and whatever can't be identified is shown as Not identified. A Disk Map opens into any folder.
 
-![The disk drawn as layers of earth, with 72 GB safe to remove](website/assets/card-storage.webp)
+![The disk drawn as layers of earth, with 72 GB safe to remove](website/assets/storage.webp)
 
 ## Clean up without worry
 
@@ -34,13 +34,13 @@ Duplicates, look-alike photos, forgotten downloads, old installers, old screensh
 
 Every item says what it is, whether it will come back, and whether it's safe to remove. Unearth moves files to the Trash, with Undo. The few cleanups that run a developer tool's own command say so first.
 
-![Cards for caches, big old videos, forgotten downloads and old installers, each with its size](website/assets/card-cleanup.webp)
+![Cards for caches, big old videos, forgotten downloads and old installers, each with its size](website/assets/cleanup.webp)
 
 ## Find your downloads
 
 Everything you saved from ChatGPT, Canva, X, Gmail, Slack and more, sorted by where it came from.
 
-![Downloads grouped by source, each with the app's logo](website/assets/card-downloads.webp)
+![Downloads grouped by source, each with the app's logo](website/assets/downloads.webp)
 
 ## Privacy
 
