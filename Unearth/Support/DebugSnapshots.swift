@@ -16,6 +16,11 @@ enum DebugSnapshots {
             NSApp.terminate(nil)
             return
         }
+        if model.options.overviewCheck {
+            await checkOverview(model, directory: directory)
+            NSApp.terminate(nil)
+            return
+        }
         if model.options.trashCheck {
             await checkTrash(model, directory: directory)
             NSApp.terminate(nil)
@@ -292,6 +297,85 @@ enum DebugSnapshots {
             await renderTimelines(model, images: await timeline(of: .kind(.image), model: model), directory: directory)
         }
         await driveTimeline(model, directory: directory)
+    }
+
+    /// Ticks folder tiles with real clicks: several add up, a tick never opens a folder, and once anything is
+    /// selected a click on a tile ticks it. Run with `-browseGrouping.image folder`.
+    private static func checkOverview(_ model: AppModel, directory: String) async {
+        func wait(_ what: () -> Bool) async {
+            let deadline = ContinuousClock.now + .seconds(60)
+            while !what(), ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(100)) }
+        }
+        await wait { !model.library.isIndexing && model.library.status != .idle }
+        model.sidebarSelection = .kind(.image)
+        await wait { TimelineProbe.setZoom != nil && TimelineProbe.zoom != nil }
+        try? await Task.sleep(for: .seconds(1))
+        TimelineProbe.setZoom?(.overview)
+        await wait { TimelineProbe.tiles.count >= 3 && TimelineProbe.overviewTimeline != nil }
+        try? await Task.sleep(for: .seconds(1))
+        guard let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeKey }), let content = window.contentView,
+              let timeline = TimelineProbe.overviewTimeline, let selection = TimelineProbe.overviewSelection,
+              let zoom = TimelineProbe.zoom, timeline.sections.count >= 3 else {
+            try? "couldn't reach the overview\n".write(toFile: Paths.join(directory, "overview-check.txt"), atomically: true, encoding: .utf8)
+            return
+        }
+        window.makeKey()
+        NSApp.activate(ignoringOtherApps: true)
+
+        func click(_ x: CGFloat, _ y: CGFloat) async {
+            let point = NSPoint(x: x, y: content.frame.height - y)
+            func event(_ type: NSEvent.EventType) -> NSEvent? {
+                NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                   windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)
+            }
+            // The release goes in the queue first: the press can start a loop that waits for it.
+            if let up = event(.leftMouseUp) { NSApp.postEvent(up, atStart: false) }
+            if let down = event(.leftMouseDown) { window.sendEvent(down) }
+            try? await Task.sleep(for: .milliseconds(600))
+        }
+        // Hovering is what shows the tick on a fresh tile; a real pointer gets there first.
+        func move(_ x: CGFloat, _ y: CGFloat) async {
+            let point = NSPoint(x: x, y: content.frame.height - y)
+            if let event = NSEvent.mouseEvent(with: .mouseMoved, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                              windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 0, pressure: 0) {
+                window.sendEvent(event)
+            }
+            try? await Task.sleep(for: .milliseconds(300))
+        }
+        func corner(_ tile: Int) -> CGPoint {
+            let frame = TimelineProbe.tiles[tile] ?? .zero
+            return CGPoint(x: frame.minX + 18, y: frame.minY + 18)
+        }
+        func middle(_ tile: Int) -> CGPoint {
+            let frame = TimelineProbe.tiles[tile] ?? .zero
+            return CGPoint(x: frame.midX, y: frame.midY)
+        }
+        func count(_ tiles: [Int]) -> Int { tiles.reduce(0) { $0 + timeline.sections[$1].count } }
+        var report = "tiles: \(timeline.sections.count), counts \(timeline.sections.prefix(3).map(\.count))\n"
+        func expect(_ name: String, _ tiles: [Int], open: Bool = false) {
+            let got = selection().count, wanted = count(tiles), opened = zoom() != .overview
+            report += "\(name): \(got == wanted && opened == open ? "right" : "WRONG") (\(got) selected, wanted \(wanted), zoom \(zoom()))\n"
+        }
+
+        // Nothing ticked yet, so ticks show only under the pointer.
+        await move(corner(0).x, corner(0).y)
+        await click(corner(0).x, corner(0).y)
+        expect("first tick", [0])
+        await click(corner(1).x, corner(1).y)
+        expect("second tick adds", [0, 1])
+        await click(middle(2).x, middle(2).y)
+        expect("a click on a tile while selecting ticks it", [0, 1, 2])
+        report += "whole tiles: \(timeline.wholeSections(in: selection()))\n"
+        await click(corner(1).x, corner(1).y)
+        expect("ticking again takes it out", [0, 2])
+        await click(middle(0).x, middle(0).y)
+        expect("so does a click on a ticked tile", [2])
+        TimelineProbe.clearOverviewSelection?()
+        try? await Task.sleep(for: .milliseconds(400))
+        expect("Deselect clears it", [])
+        await click(middle(1).x, middle(1).y)
+        expect("with nothing selected a click opens the folder", [], open: true)
+        try? report.write(toFile: Paths.join(directory, "overview-check.txt"), atomically: true, encoding: .utf8)
     }
 
     /// How soon after launch the screens filled in. Numbers only.
@@ -815,6 +899,14 @@ enum DebugSnapshots {
             }
         }
         save(TimelineSnapshot(scope: .kind(.image), timeline: byFolder, grouping: .folder, zoom: .overview), "images-folders")
+        var picked = Set<Int64>()
+        for section in byFolder.sections.indices {
+            byFolder.needIDs(in: section)
+            if section < 2 { picked.formUnion(await byFolder.files(in: section).map(\.id)) }
+        }
+        try? await Task.sleep(for: .seconds(1))
+        save(TimelineSnapshot(scope: .kind(.image), timeline: byFolder, grouping: .folder, zoom: .overview, selection: picked),
+             "images-folders-picked")
 
         // A big folder of pictures: its folders on top, then its months.
         let listing = PlaceListing.list(Paths.join(model.realPath(model.homePath), "Downloads"), sizes: model.folderSize)
@@ -907,6 +999,12 @@ enum TimelineProbe {
     /// Sends a browse screen to every file, whatever it would open at.
     static var opensEveryFile = false
     static var setZoom: ((TimelineZoom) -> Void)?
+    static var zoom: (() -> TimelineZoom)?
+    /// The folder tiles on screen, by position, in the window.
+    static var tiles: [Int: CGRect] = [:]
+    static var overviewTimeline: Timeline?
+    static var overviewSelection: (() -> Set<Int64>)?
+    static var clearOverviewSelection: (() -> Void)?
     private(set) static var metrics: TimelineMetrics?
     private(set) static var frame: (() -> CGRect)?
     private(set) static var selection: (() -> Set<Int64>)?
@@ -948,7 +1046,7 @@ struct TimelineSnapshot: View {
             switch zoom {
             case .years: TimelineYearsContent(timeline: timeline, kind: kind)
             case .months: TimelineMonthsContent(timeline: timeline, kind: kind)
-            case .overview: TimelineOverviewContent(timeline: timeline, kind: kind)
+            case .overview: TimelineOverviewContent(timeline: timeline, kind: kind, selection: .constant(selection))
             case .all: lines(kind: kind)
             }
         }

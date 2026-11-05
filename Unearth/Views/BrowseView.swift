@@ -152,7 +152,7 @@ struct BrowseView: View {
         .background(Color.canvas)
         .safeAreaInset(edge: .bottom) {
             if !selection.isEmpty {
-                SelectionBar(files: selectedFiles, trashing: $trashing, selection: $selection)
+                SelectionBar(files: selectedFiles, trashing: $trashing, selection: $selection, note: pickedTiles)
             }
         }
         .toolbar {
@@ -165,8 +165,21 @@ struct BrowseView: View {
         .task(id: LoadKey(filters: filters, sort: sort, chosenGrouping: chosenGrouping)) { await load(keepingWhatsShown: false) }
         .onChange(of: model.library.revision) { Task { await load(keepingWhatsShown: true) } }
         #if DEBUG
-        .onAppear { TimelineProbe.setZoom = { zoom = $0 } }
+        .onAppear {
+            TimelineProbe.setZoom = { zoom = $0 }
+            TimelineProbe.zoom = { zoom }
+        }
         #endif
+    }
+
+    /// On the overview, how many folders or sources the selection is: "in 3 folders".
+    private var pickedTiles: String? {
+        let grouping = shownGrouping
+        guard zoom.fitted(to: grouping) == .overview else { return nil }
+        let tiles = timeline.wholeSections(in: selection)
+        guard tiles > 0 else { return nil }
+        let (one, many) = grouping == .source ? ("source", "sources") : ("folder", "folders")
+        return "in \(tiles.formatted()) \(tiles == 1 ? one : many)"
     }
 
     private var selectedFiles: [IndexedFile] {

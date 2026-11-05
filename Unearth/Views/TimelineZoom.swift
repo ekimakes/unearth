@@ -56,7 +56,7 @@ struct TimelineScreen: View {
         switch zoom.fitted(to: grouping) {
         case .overview:
             ScrollView {
-                TimelineOverviewContent(timeline: timeline, kind: kind) { section in
+                TimelineOverviewContent(timeline: timeline, kind: kind, selection: $selection) { section in
                     jump = section.key
                     zoom = .all
                 }
@@ -100,22 +100,98 @@ struct TimelineYearsContent: View {
 }
 
 /// A screen's folders or download sources, a tile each, the one with the most files first: all of it in sight
-/// without scrolling through its files.
+/// without scrolling through its files. Ticking tiles selects all their files, so several can go at once.
 struct TimelineOverviewContent: View {
     let timeline: Timeline
     let kind: FileKind?
+    var selection: Binding<Set<Int64>> = .constant([])
     var onOpen: (FileSection) -> Void = { _ in }
+    /// Tiles ticked whose files are still on their way.
+    @State private var arriving: Set<FileSection.Key> = []
 
     var body: some View {
+        let picking = !selection.wrappedValue.isEmpty || !arriving.isEmpty
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 250, maximum: 420), spacing: 16)], spacing: 16) {
-            ForEach(timeline.sections) { section in
-                Button { onOpen(section) } label: { SectionTile(timeline: timeline, section: section, kind: kind) }
-                    .buttonStyle(.plain)
+            ForEach(Array(timeline.sections.enumerated()), id: \.element.id) { index, section in
+                PickableSectionTile(timeline: timeline, index: index, section: section, kind: kind,
+                                    coverage: coverage(index, section), picking: picking,
+                                    onTick: { tick(index, section) }, onOpen: { onOpen(section) })
             }
         }
         .padding(.horizontal, TimelineMetrics.padding)
         .padding(.top, 4)
         .padding(.bottom, TimelineMetrics.padding)
+        #if DEBUG
+        .onAppear {
+            TimelineProbe.overviewTimeline = timeline
+            TimelineProbe.overviewSelection = { selection.wrappedValue }
+            TimelineProbe.clearOverviewSelection = { selection.wrappedValue = [] }
+        }
+        #endif
+    }
+
+    private func coverage(_ index: Int, _ section: FileSection) -> SectionCoverage {
+        if arriving.contains(section.key) { return .whole }
+        return timeline.ids(in: index).map { SectionCoverage(of: $0, in: selection.wrappedValue) } ?? .nothing
+    }
+
+    /// Selects all of a tile's files, or deselects them when all of them are selected already. Every tile ticked
+    /// in a row counts, however long each one's files take to load.
+    private func tick(_ index: Int, _ section: FileSection) {
+        guard !arriving.contains(section.key) else {
+            arriving.remove(section.key)
+            return
+        }
+        if let ids = timeline.ids(in: index), SectionCoverage(of: ids, in: selection.wrappedValue) == .whole {
+            selection.wrappedValue.subtract(ids)
+            return
+        }
+        arriving.insert(section.key)
+        Task {
+            let files = await timeline.files(in: index)
+            guard arriving.remove(section.key) != nil else { return }
+            selection.wrappedValue.formUnion(files.map(\.id))
+        }
+    }
+}
+
+/// A folder or source tile with a tick in its corner. The tick shows on hover and, once anything is selected, on
+/// every tile. While selecting, a click anywhere on a tile ticks it instead of opening it.
+private struct PickableSectionTile: View {
+    let timeline: Timeline
+    let index: Int
+    let section: FileSection
+    let kind: FileKind?
+    let coverage: SectionCoverage
+    let picking: Bool
+    let onTick: () -> Void
+    let onOpen: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        let title = section.key.title(calendar: timeline.calendar)
+        Button(action: picking ? onTick : onOpen) {
+            SectionTile(timeline: timeline, section: section, kind: kind, picked: coverage != .nothing)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAction(named: coverage == .whole ? "Deselect" : "Select", onTick)
+        .overlay(alignment: .topLeading) {
+            // Always there, so a click in the corner ticks even when the hover hasn't caught up with the pointer.
+            Button(action: onTick) {
+                TileTick(selected: coverage == .whole, partly: coverage == .part, side: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .opacity(picking || hovering ? 1 : 0.001)
+            .help(coverage == .whole ? "Deselect \(title)" : "Select \(title)")
+            .accessibilityHidden(true)
+        }
+        .onHover { hovering = $0 }
+        // Whether the tile is ticked, however its files came to be selected.
+        .task(id: timeline.loads) { timeline.needIDs(in: index) }
+        #if DEBUG
+        .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { TimelineProbe.tiles[index] = $0 }
+        #endif
     }
 }
 
@@ -181,6 +257,8 @@ struct PictureTile: View {
     var titleSize: CGFloat = 30
     var place: String?
     let detail: String
+    /// Ticked: some or all of what it stands for is selected.
+    var picked = false
     @State private var hovering = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -220,7 +298,10 @@ struct PictureTile: View {
         .frame(height: 196)
         .background(Color.hairline.opacity(0.45))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.hairline) }
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(picked ? Color.unearth : Color.hairline, lineWidth: picked ? 3 : 1)
+        }
         .scaleEffect(hovering && !reduceMotion ? 1.015 : 1)
         .shadow(color: .black.opacity(hovering ? 0.14 : 0), radius: 10, y: 5)
         .animation(reduceMotion ? nil : .spring(duration: 0.25), value: hovering)
@@ -268,18 +349,20 @@ struct SectionTile: View {
     let timeline: Timeline
     let section: FileSection
     let kind: FileKind?
+    var picked = false
     @State private var files: [IndexedFile]
 
-    init(timeline: Timeline, section: FileSection, kind: FileKind?) {
+    init(timeline: Timeline, section: FileSection, kind: FileKind?, picked: Bool = false) {
         self.timeline = timeline
         self.section = section
         self.kind = kind
+        self.picked = picked
         _files = State(initialValue: timeline.cachedPreviews(of: section))
     }
 
     var body: some View {
         PictureTile(files: files, title: section.key.title(calendar: timeline.calendar), titleSize: 17, place: section.key.place,
-                    detail: "\(FileKind.count(section.count, of: kind)) · \(ByteFormatting.string(section.bytes))")
+                    detail: "\(FileKind.count(section.count, of: kind)) · \(ByteFormatting.string(section.bytes))", picked: picked)
             .task(id: timeline.loads) { files = await timeline.previews(of: section, count: 3) }
     }
 }

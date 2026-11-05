@@ -139,6 +139,7 @@ public actor FileIndex {
         }
         if version != 0, version != Self.schemaVersion { try Self.dropSchema(db) }
         try Self.createSchema(db)
+        try Self.nameKnownDomains(db)
         // Only for speed: a disk too full to build these mustn't cost the whole Library.
         for columns in ["kind", "parent", "source"] {
             try? db.execute("CREATE INDEX IF NOT EXISTS files_\(columns)_made ON files(\(columns), \(Self.made))")
@@ -223,6 +224,13 @@ public actor FileIndex {
             PRAGMA user_version = 4;
             COMMIT;
             """)
+    }
+
+    /// Names the sources stored as a domain that Unearth has since learned to recognize, which brings their logos.
+    /// It leaves the tables as they are, so an older build can still open the index.
+    private static func nameKnownDomains(_ db: SQLiteDatabase) throws {
+        let renames = DownloadSource.namedDomains.map { "UPDATE files SET source = '\($0.name)' WHERE source = '\($0.domain)';" }
+        try db.execute("BEGIN IMMEDIATE;\n\(renames.joined(separator: "\n"))\nCOMMIT;")
     }
 
     private static func dropSchema(_ db: SQLiteDatabase) throws {

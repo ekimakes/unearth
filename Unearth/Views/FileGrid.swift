@@ -331,10 +331,13 @@ struct SelectionBar: View {
     let files: [IndexedFile]
     @Binding var trashing: [IndexedFile]
     @Binding var selection: Set<Int64>
+    /// Where the files are, when whole folders or sources were picked: "in 3 folders".
+    var note: String?
 
     var body: some View {
         HStack(spacing: 10) {
-            Text(files.count == 1 ? "1 selected" : "\(files.count.formatted()) selected").font(.headline)
+            Text((files.count == 1 ? "1 selected" : "\(files.count.formatted()) selected") + (note.map { " \($0)" } ?? ""))
+                .font(.headline)
             SizeLabel(bytes: files.reduce(0) { $0 + $1.bytes }).foregroundStyle(.secondary)
             Button("Deselect") { selection = [] }
                 .buttonStyle(.plain)

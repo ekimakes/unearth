@@ -90,12 +90,15 @@ struct TileBadges: View {
 /// The circle in a picture's corner, ticked when it's selected.
 struct TileTick: View {
     let selected: Bool
+    /// Some of what the tile stands for is selected.
+    var partly = false
+    var side: CGFloat = 18
 
     var body: some View {
-        Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-            .font(.system(size: 18, weight: .semibold))
+        Image(systemName: selected ? "checkmark.circle.fill" : partly ? "minus.circle.fill" : "circle")
+            .font(.system(size: side, weight: .semibold))
             .symbolRenderingMode(.palette)
-            .foregroundStyle(.white, selected ? Color.unearth : Color.black.opacity(0.25))
+            .foregroundStyle(.white, selected || partly ? Color.unearth : Color.black.opacity(0.25))
             .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
             .padding(6)
     }

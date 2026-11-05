@@ -213,6 +213,13 @@ final class Timeline {
         sections.indices.contains(section) ? sectionIDs[sections[section].key] : nil
     }
 
+    /// How many sections are wholly selected, of those whose IDs have loaded.
+    func wholeSections(in selection: Set<Int64>) -> Int {
+        sections.indices.count { index in
+            ids(in: index).map { SectionCoverage(of: $0, in: selection) == .whole } ?? false
+        }
+    }
+
     func needIDs(in section: Int) {
         guard sections.indices.contains(section), !requestedIDs.contains(sections[section].key) else { return }
         let fileSection = sections[section]

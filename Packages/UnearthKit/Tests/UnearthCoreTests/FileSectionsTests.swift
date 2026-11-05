@@ -312,6 +312,19 @@ struct FileSectionsTests {
         #expect(FileSection.railMarks(sections, positions: [0, 100], spacing: 15).map(\.label) == [.year(2026)])
     }
 
+    @Test func coverageSaysHowMuchOfASectionIsSelected() {
+        let section: Set<Int64> = [1, 2, 3]
+        #expect(SectionCoverage(of: section, in: []) == .nothing)
+        #expect(SectionCoverage(of: section, in: [7, 8]) == .nothing)
+        #expect(SectionCoverage(of: section, in: [2, 7]) == .part)
+        #expect(SectionCoverage(of: section, in: [1, 2, 3]) == .whole)
+        #expect(SectionCoverage(of: section, in: [1, 2, 3, 9]) == .whole)
+    }
+
+    @Test func anEmptySectionIsNeverCovered() {
+        #expect(SectionCoverage(of: [], in: [1, 2]) == .nothing)
+    }
+
     @Test func aSectionsFilesAreFoundWithoutWalkingTheWholeLibrary() async throws {
         // On a big library, a folder's first page must not mean reading every image to find the folder's.
         let index = try await Self.library()

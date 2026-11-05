@@ -24,8 +24,7 @@ The number next to the button is GitHub's own count. On load, the page asks `htt
 
 - **The repository or the file name:** the `RELEASE` const at the top of the script in `index.html`. Every release must attach a file with exactly that name, because the button links to `releases/latest/download/<file>`. The `href` values written in the HTML are only for visitors without JavaScript.
 - **The site's address:** the `og:image` meta tag needs a full URL. It assumes GitHub Pages at `ekimakes.github.io/unearth`.
-- **The strata at the top:** `LAYERS`, `USED` and `SAFE` in the script. They match the sample Mac in the screenshots, as do the size labels above each section's heading.
 
 ## The pictures
 
-Every screen in `assets/` is the real app, rendered from a made-up sample Mac: generated pictures, fake invoices and four sample apps. None of it is anyone's real files. Their sizes and Library counts were scaled up so the sample reads as a normal 1 TB Mac, which is why the footer says the screens show a sample Mac.
+Every picture in `assets/`, and `hero.mp4`, shows the real app, rendered from a made-up sample Mac: free photos from [Unsplash](https://unsplash.com/license) (through [Lorem Picsum](https://picsum.photos)), fake invoices and four sample apps. None of it is anyone's real files, and photos of people were left out. Sizes and Library counts were scaled up so the sample reads as a normal 1 TB Mac, which is why the footer says the screens show a sample Mac. The pointer and the typing in the video are added on top of those screens. `hero.webp` is the same video as a small animated picture, for the README on GitHub.

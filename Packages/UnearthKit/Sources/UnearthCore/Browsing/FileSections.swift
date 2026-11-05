@@ -312,3 +312,16 @@ extension FileIndex {
         }
     }
 }
+
+/// How much of a section the selection takes in.
+public enum SectionCoverage: Sendable, Equatable {
+    case nothing, part, whole
+
+    public init(of section: Set<Int64>, in selection: Set<Int64>) {
+        if section.isEmpty || section.isDisjoint(with: selection) {
+            self = .nothing
+        } else {
+            self = section.isSubset(of: selection) ? .whole : .part
+        }
+    }
+}

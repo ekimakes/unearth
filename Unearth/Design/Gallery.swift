@@ -350,34 +350,41 @@ struct MosaicTile: View {
 
 // MARK: - Monograms
 
-/// A download source's initial in its own color. No logos: they'd need the network or someone's artwork.
+/// A download source's logo, shipped with the app so showing it needs no network. A website Unearth doesn't
+/// recognize gets its initial in a color of its own.
 struct Monogram: View {
     let name: String
     var side: CGFloat = 28
 
     var body: some View {
-        Text(String(name.prefix(1)).uppercased())
-            .font(.system(size: side * 0.46, weight: .bold, design: .rounded))
-            .foregroundStyle(.white)
-            .frame(width: side, height: side)
-            .background(Self.color(for: name), in: Circle())
-            .accessibilityHidden(true)
+        Group {
+            if let logo = DownloadSource.logo(for: name) {
+                Image("Logos/\(logo)")
+                    .resizable()
+                    .scaledToFit()
+                    .padding(side * (side < 20 ? 0.12 : 0.2))
+                    .frame(width: side, height: side)
+                    // Logos are drawn for white, so they get it in dark mode too.
+                    .background(.white, in: Circle())
+                    .overlay { Circle().strokeBorder(Color.black.opacity(0.08)) }
+            } else {
+                Text(String(name.prefix(1)).uppercased())
+                    .font(.system(size: side * 0.46, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .frame(width: side, height: side)
+                    .background(Self.color(for: name), in: Circle())
+            }
+        }
+        .accessibilityHidden(true)
     }
 
-    private static let known: [String: UInt32] = [
-        "ChatGPT": 0x10A37F, "Claude": 0xC15F3C, "Gmail": 0xEA4335, "Google Drive": 0x1FA463, "Google": 0x4285F4,
-        "Slack": 0x4A154B, "X": 0x2F3336, "WhatsApp": 0x25D366, "Telegram": 0x2AABEE, "Discord": 0x5865F2,
-        "Dropbox": 0x0061FF, "Notion": 0x37352F, "Figma": 0xA259FF, "Canva": 0x00A8B5, "Apple": 0x6B7280,
-        "GitHub": 0x24292F,
-    ]
     private static let palette: [UInt32] = [
-        0x2E90FA, 0x7A5AF8, 0x12B76A, 0xEE46BC, 0xF79009, 0x06AED4, 0x6172F3, 0xF04438, 0x0E9384, 0x9E77ED,
+        0x2E90FA, 0x7A5AF8, 0x12B76A, 0xEE46BC, 0xF79009, 0x06AED4, 0x6172F3, 0xF04438, 0x0E9384,
     ]
 
-    /// The same color for a source every time, on every Mac.
+    /// The same color for a website every time, on every Mac.
     static func color(for name: String) -> Color {
-        if let hex = known[name] { return Color(hex: hex) }
-        return Color(hex: palette[name.unicodeScalars.reduce(0) { $0 + Int($1.value) } % palette.count])
+        Color(hex: palette[name.unicodeScalars.reduce(0) { $0 + Int($1.value) } % palette.count])
     }
 }
 

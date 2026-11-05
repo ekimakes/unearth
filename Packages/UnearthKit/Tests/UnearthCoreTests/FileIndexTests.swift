@@ -320,6 +320,23 @@ struct FileIndexTests {
     }
 
     /// An index from before shot scores (version 3) keeps its hashes and prints and gains a place for scores.
+    @Test func sourcesStoredAsADomainGetTheirNames() async throws {
+        let fx = try Fixture()
+        defer { fx.remove() }
+        let path = fx.path("index.sqlite")
+        do {
+            let index = try FileIndex(url: URL(fileURLWithPath: path))
+            var known = Self.record("/u/Downloads/a.jpg", kind: .image, bytes: 10)
+            known.source = "cdninstagram.com"
+            var unknown = Self.record("/u/Downloads/b.jpg", kind: .image, bytes: 10)
+            unknown.source = "example.com"
+            try await index.upsert([known, unknown], generation: await index.beginPass())
+        }
+        let index = try FileIndex(url: URL(fileURLWithPath: path))
+        let sources = await Self.all(index).sorted { $0.path < $1.path }.map(\.source)
+        #expect(sources == ["Instagram", "example.com"])
+    }
+
     @Test func aVersion3IndexGainsScores() async throws {
         let fx = try Fixture()
         defer { fx.remove() }

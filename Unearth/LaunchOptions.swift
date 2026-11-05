@@ -25,6 +25,8 @@ struct LaunchOptions {
     var trashCheck = false
     /// With a snapshot directory: write how soon the screens filled in after launch, and quit.
     var openCheck = false
+    /// With a snapshot directory: tick folder tiles through the real window, and quit.
+    var overviewCheck = false
     /// After each scan, write its numbers here as JSON (for checking a real-disk run).
     var reportFile: String?
 
@@ -44,6 +46,7 @@ struct LaunchOptions {
         options.timelineCheck = flag("UnearthTimelineCheck")
         options.trashCheck = flag("UnearthTrashCheck")
         options.openCheck = flag("UnearthOpenCheck")
+        options.overviewCheck = flag("UnearthOverviewCheck")
         options.reportFile = text("UnearthReportFile")
         #endif
         return options
