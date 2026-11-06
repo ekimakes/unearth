@@ -12,7 +12,8 @@ set -euo pipefail
 cd "${0:A:h}/.."
 OUT=build/release
 PROFILE=${NOTARY_PROFILE:-unearth-notary}
-IDENTITY="Developer ID Application"
+# By its full name, here and in the project: an older Developer ID certificate can still be on this Mac.
+IDENTITY='Developer ID Application: "UniCode" d.o.o. Brcko distrikt BiH (VXX54355D8)'
 NOTARIZE=1
 [[ "${1:-}" == "--no-notarize" ]] && NOTARIZE=0
 
@@ -25,6 +26,7 @@ xcodebuild -project Unearth.xcodeproj -scheme Unearth -configuration Release -de
 
 APP="$OUT/Unearth.xcarchive/Products/Applications/Unearth.app"
 codesign --verify --deep --strict "$APP"
+[[ "$(codesign -dvv "$APP" 2>&1)" == *"Authority=$IDENTITY"* ]] || { echo "The app isn't signed with $IDENTITY."; exit 1; }
 codesign --display --entitlements - "$APP" 2>/dev/null | grep -q 'get-task-allow' && { echo "The app is still debuggable: not a release build."; exit 1; }
 
 if (( NOTARIZE )); then
