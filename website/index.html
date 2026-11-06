@@ -204,6 +204,9 @@ footer {
   color: var(--ink-2);
   text-align: center;
 }
+.maker { padding-bottom: 10px; font-size: 16px; color: var(--ink); }
+.maker span { display: inline-block; } /* On a phone, the second sentence wraps whole */
+.maker a { display: inline-block; padding: 8px 7px; margin: -8px -7px; } /* A bigger tap area, with the text where it was */
 
 @media (max-width: 640px) {
   .compare, .compare thead, .compare tbody { display: block; }
@@ -359,6 +362,7 @@ footer {
 </section>
 
 <footer>
+  <p class="maker">Made by Ekimakes. <span>Follow on <a href="https://x.com/ekimakes">X</a> and <a href="https://www.instagram.com/ekimakes/">Instagram</a>.</span></p>
   <p>Screens show a sample Mac with free photos from Unsplash. This site has no cookies or analytics. <a href="https://github.com/ekimakes/unearth" data-source>Source code</a>, GPL-3.0.</p>
 </footer>
 
