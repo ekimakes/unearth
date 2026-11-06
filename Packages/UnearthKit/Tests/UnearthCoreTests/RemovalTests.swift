@@ -20,6 +20,113 @@ struct RemovalTests {
         try await DiskScanner().scan(ScanOptions(rootPath: fx.path("data"), displayRoot: "/"))
     }
 
+    // MARK: - A folder that changed without a scan
+
+    private static let trash = "/Users/me/.Trash"
+
+    private static func trashed(_ fx: Fixture) throws {
+        try fx.file("data/Users/me/.Trash/old/a.bin", bytes: 80_000)
+        try fx.file("data/Users/me/.Trash/older/b.bin", bytes: 40_000)
+        try fx.file("data/Users/me/.Trash/loose.bin", bytes: 20_000)
+        try fx.file("data/Users/me/Documents/keep.bin", bytes: 10_000)
+    }
+
+    @Test func anEmptiedFolderHoldsNothing() async throws {
+        let fx = try Fixture()
+        defer { fx.remove() }
+        try Self.trashed(fx)
+        let tree = try await Self.scanned(fx)
+        let held = try #require(tree.node(atPath: Self.trash)).totalBytes
+        let emptied = tree.refreshing(folder: Self.trash, bytes: 0) { _ in false }
+        let trash = try #require(emptied.node(atPath: Self.trash))
+        #expect(trash.totalBytes == 0 && trash.ownBytes == 0 && trash.children.isEmpty)
+        #expect(trash.totalFileCount == 0 && trash.ownFileCount == 0)
+        #expect(emptied.node(atPath: "/Users/me")?.totalBytes == tree.node(atPath: "/Users/me").map { $0.totalBytes - held })
+        #expect(emptied.node(atPath: "/")?.totalBytes == tree.node(atPath: "/").map { $0.totalBytes - held })
+        #expect(emptied.node(atPath: "/Users/me")?.totalFileCount == 1)
+        #expect(emptied.node(atPath: "/Users/me/Documents") == tree.node(atPath: "/Users/me/Documents"))
+    }
+
+    @Test func whatsLeftInAFolderAddsUpToWhatWasMeasured() async throws {
+        let fx = try Fixture()
+        defer { fx.remove() }
+        try Self.trashed(fx)
+        let tree = try await Self.scanned(fx)
+        let held = try #require(tree.node(atPath: Self.trash)).totalBytes
+        let lighter = tree.refreshing(folder: Self.trash, bytes: 50_000) { !$0.hasSuffix("/old") }
+        let trash = try #require(lighter.node(atPath: Self.trash))
+        #expect(trash.totalBytes == 50_000)
+        #expect(trash.children.map { lighter.node($0).name } == ["older"])
+        #expect(lighter.node(atPath: "/Users/me")?.totalBytes == tree.node(atPath: "/Users/me").map { $0.totalBytes - held + 50_000 })
+    }
+
+    @Test func aFolderThatGrewMakesTheOnesAboveItBigger() async throws {
+        let fx = try Fixture()
+        defer { fx.remove() }
+        try Self.trashed(fx)
+        let tree = try await Self.scanned(fx)
+        let held = try #require(tree.node(atPath: Self.trash)).totalBytes
+        let bigger = tree.refreshing(folder: Self.trash, bytes: held + 500_000) { _ in true }
+        #expect(bigger.node(atPath: Self.trash)?.totalBytes == held + 500_000)
+        #expect(bigger.node(atPath: "/")?.totalBytes == tree.node(atPath: "/").map { $0.totalBytes + 500_000 })
+    }
+
+    @Test func aFolderKeepsItsBigFilesOnlyIfTheyreStillThere() async throws {
+        let fx = try Fixture()
+        defer { fx.remove() }
+        try Self.trashed(fx)
+        try fx.file("data/Users/me/.Trash/huge.bin", bytes: 3_000_000)
+        try fx.file("data/Users/me/Documents/huge.bin", bytes: 3_000_000)
+        var options = ScanOptions(rootPath: fx.path("data"), displayRoot: "/")
+        options.bigFileFloor = 1_000_000
+        let tree = try await DiskScanner().scan(options)
+        #expect(tree.bigFiles.count == 2)
+        let emptied = tree.refreshing(folder: Self.trash, bytes: 0) { _ in false }
+        #expect(emptied.bigFiles.map(\.path) == ["/Users/me/Documents/huge.bin"])
+    }
+
+    @Test func aFolderOutsideTheScanChangesNothing() async throws {
+        let fx = try Fixture()
+        defer { fx.remove() }
+        try Self.trashed(fx)
+        let tree = try await Self.scanned(fx)
+        #expect(tree.refreshing(folder: "/Users/someone/.Trash", bytes: 0) { _ in false } === tree)
+    }
+
+    @Test func theTrashRowFollowsTheTrash() async throws {
+        let fx = try Fixture()
+        defer { fx.remove() }
+        try Self.trashed(fx)
+        let tree = try await Self.scanned(fx)
+        let held = try #require(tree.node(atPath: Self.trash)).totalBytes
+        #expect(TrashReportDetector.item(in: tree, homePath: "/Users/me")?.bytes == held)
+        let lighter = tree.refreshing(folder: Self.trash, bytes: 5_000) { _ in true }
+        #expect(TrashReportDetector.item(in: lighter, homePath: "/Users/me")?.bytes == 5_000)
+        let emptied = tree.refreshing(folder: Self.trash, bytes: 0) { _ in false }
+        #expect(TrashReportDetector.item(in: emptied, homePath: "/Users/me") == nil)
+    }
+
+    @Test func aPlanSwapsOneRowInPlace() {
+        func row(_ name: String) -> CleanupItem { .picked(path: "/u/" + name, bytes: 10, what: "A file.") }
+        let plan = CleanupPlan(items: [row("a"), row("b"), row("c")])
+        let middle = plan.items[1]
+        let new = row("new")
+        let swapped = plan.replacing(middle.id, with: new)
+        #expect(swapped.items.map(\.paths) == [["/u/a"], ["/u/new"], ["/u/c"]])
+        let dropped = plan.replacing(middle.id, with: nil)
+        #expect(dropped.items.map(\.paths) == [["/u/a"], ["/u/c"]])
+    }
+
+    @Test func aFolderShowsWhenWhatsInItChanged() throws {
+        let fx = try Fixture()
+        defer { fx.remove() }
+        try fx.file("box/a.bin", bytes: 10)
+        let before = try #require(DiskUsage.lastChange(of: fx.path("box")))
+        try FileManager.default.removeItem(atPath: fx.path("box/a.bin"))
+        #expect(DiskUsage.lastChange(of: fx.path("box")) != before)
+        #expect(DiskUsage.lastChange(of: fx.path("nothing-here")) == nil)
+    }
+
     // MARK: - Duplicates
 
     @Test func aGroupLosesTheCopiesThatLeft() throws {

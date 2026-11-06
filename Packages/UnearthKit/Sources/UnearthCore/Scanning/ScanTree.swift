@@ -132,6 +132,40 @@ public final class ScanTree: Sendable, Identifiable {
         return children.first { Paths.isSameOrInside("/" + nodes[Int($0.raw)].name, "/" + name) }
     }
 
+    /// This tree with one folder as it is now, until the next scan looks: folders inside it that `exists` no longer
+    /// finds go with all they held, it adds up to the `bytes` just measured, and the folders above it follow.
+    public func refreshing(folder displayPath: String, bytes: Int64, exists: (String) -> Bool) -> ScanTree {
+        guard let id = nodeID(forPath: displayPath) else { return self }
+        let gone = node(id).children.map(path(of:)).filter { !exists($0) }
+        let left = gone.isEmpty ? self : removing(gone.map { (path: $0, bytes: 0) })
+        var nodes = left.nodes
+        let folder = nodes[Int(id.raw)]
+        let change = bytes - folder.totalBytes
+        // Empty is exact. Otherwise the scan's counts stand until it looks again: only the size was measured.
+        let emptied = bytes == 0
+        nodes[Int(id.raw)] = folder.changing(
+            children: emptied ? [] : nil, ownBytes: max(0, bytes - (folder.totalBytes - folder.ownBytes)),
+            ownMediaBytes: emptied ? 0 : nil, ownFileCount: emptied ? 0 : nil, totalBytes: bytes,
+            totalMediaBytes: emptied ? 0 : nil, totalFileCount: emptied ? 0 : nil)
+        var above = folder.parent
+        while let current = above {
+            let node = nodes[Int(current.raw)]
+            nodes[Int(current.raw)] = node.changing(
+                totalBytes: max(0, node.totalBytes + change),
+                totalMediaBytes: emptied ? max(0, node.totalMediaBytes - folder.totalMediaBytes) : nil,
+                totalFileCount: emptied ? max(0, node.totalFileCount - folder.totalFileCount) : nil)
+            above = node.parent
+        }
+        above = folder.parent
+        while let current = above {
+            let node = nodes[Int(current.raw)]
+            nodes[Int(current.raw)] = node.changing(children: node.children.sorted { nodes[Int($0.raw)].totalBytes > nodes[Int($1.raw)].totalBytes })
+            above = node.parent
+        }
+        return ScanTree(nodes: nodes, rootPath: rootPath, displayRoot: displayRoot,
+                        bigFiles: left.bigFiles.filter { !Paths.isSameOrInside($0.path, displayPath) || exists($0.path) }, stats: stats)
+    }
+
     /// This tree with what just left the disk taken out, until the next scan looks. By display path, a folder goes
     /// with all it held and a file with the `bytes` it took; the folders above them get smaller by as much.
     public func removing(_ removed: [(path: String, bytes: Int64)]) -> ScanTree {

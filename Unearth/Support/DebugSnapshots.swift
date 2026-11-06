@@ -701,6 +701,27 @@ enum DebugSnapshots {
         await waitUntil(.seconds(60)) { !model.isScanning && !model.isRefreshing }
         await timed("Removed behind the app's back", { try? FileManager.default.removeItem(atPath: second) }) { $1 >= $0 + size / 2 }
         await timed("A download landed", { FileManager.default.createFile(atPath: third, contents: Data(repeating: 1, count: Int(size))) }) { $1 <= $0 - size / 2 }
+
+        // The Trash, changed behind the app's back as Finder does.
+        func trashRow() -> Int64? { model.plan?.items.first { $0.ruleID == TrashReportDetector.ruleID }?.bytes }
+        func storageTrash() -> Int64 { model.tree?.node(atPath: "/Users/demo/.Trash")?.totalBytes ?? -1 }
+        func followed(_ name: String, _ change: () -> Void, until done: @escaping (Int64?) -> Bool) async {
+            let began = clock.now
+            change()
+            await waitUntil(.seconds(8)) { done(trashRow()) }
+            note("\(name): the row says \(trashRow().map(String.init) ?? "nothing"), Storage counts \(storageTrash()), after \(clock.now - began)")
+        }
+        let trash = Paths.join(root, "Users/demo/.Trash")
+        await waitUntil(.seconds(60)) { !model.isScanning && !model.isRefreshing }
+        await waitUntil(.seconds(8)) { trashRow() != nil }
+        let held = trashRow() ?? 0
+        note("The Trash row starts at \(held), Storage counts \(storageTrash())")
+        await followed("Part of the Trash went", { try? FileManager.default.removeItem(atPath: Paths.join(trash, "old-1.bin")) }) { ($0 ?? 0) < held - 50_000_000 && $0 != nil }
+        await followed("The Trash was emptied", { try? FileManager.default.removeItem(atPath: Paths.join(trash, "old-folder")) }) { $0 == nil }
+        await followed("Something went in the Trash", { FileManager.default.createFile(atPath: Paths.join(trash, "new.bin"), contents: Data(repeating: 2, count: Int(size))) }) { ($0 ?? 0) > size / 2 }
+        await waitUntil(.seconds(60)) { !model.isScanning && !model.isRefreshing }
+        try? await Task.sleep(for: .seconds(3))
+        note("After the scan that follows: the row says \(trashRow().map(String.init) ?? "nothing"), Storage counts \(storageTrash())")
     }
 
     /// Moves things to the Trash with their page open, the way the confirmation's button does, writing how long they

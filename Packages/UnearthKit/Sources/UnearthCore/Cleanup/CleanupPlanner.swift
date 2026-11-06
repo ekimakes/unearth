@@ -7,6 +7,11 @@ public struct CleanupPlan: Sendable {
         self.items = items
     }
 
+    /// This plan with one row swapped for `item` where it stands, or taken out when there's none.
+    public func replacing(_ id: CleanupItem.ID, with item: CleanupItem?) -> CleanupPlan {
+        CleanupPlan(items: items.flatMap { $0.id == id ? (item.map { [$0] } ?? []) : [$0] })
+    }
+
     /// Largest first.
     public func items(in section: CleanupSection) -> [CleanupItem] {
         items.filter { $0.section == section }.sorted { $0.bytes > $1.bytes }

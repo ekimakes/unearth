@@ -92,6 +92,8 @@ final class AppModel {
     @ObservationIgnored private var scanAgain = false
     /// What moved while a scan was running: that scan may have seen it, so it's taken out of what the scan found.
     @ObservationIgnored private var movedDuringScan: [(path: String, bytes: Int64)] = []
+    /// When the Trash last changed, as far as what's on screen knows. Nil: it hasn't been measured since the last scan.
+    @ObservationIgnored private var trashChange: Int64?
 
     private let runner = ProcessCommandRunner()
     /// Moves an app installed for all users through the macOS password prompt; typing a password can take a while.
@@ -216,7 +218,54 @@ final class AppModel {
                 try? await Task.sleep(for: .seconds(2), tolerance: .seconds(1))
                 let available = await Task.detached { VolumeInventory.availableCapacity(at: path) }.value
                 if let available, let changed = self?.volumes?.refreshed(available: available) { self?.volumes = changed }
+                await self?.followTrash()
             }
+        }
+    }
+
+    /// The Trash changes without Unearth being told, usually by being emptied in Finder. Its row, Storage, History and
+    /// the result banner follow within seconds: only the Trash is measured, so nothing waits for a scan.
+    private func followTrash() async {
+        let trash = Paths.join(homePath, ".Trash")
+        guard trashProgress == nil, let tree, let node = tree.node(atPath: trash), !node.isInaccessible else { return }
+        let path = realPath(trash)
+        let change = DiskUsage.lastChange(of: path)
+        guard change != trashChange else { return }
+        trashChange = change
+        let bytes = await Task.detached(priority: .utility) { DiskUsage.onDisk(path) }.value
+        guard bytes == 0 ? node.totalBytes != 0 : abs(bytes - node.totalBytes) >= 1_000_000 else { return }
+        let refreshed = await Task.detached(priority: .utility) {
+            tree.refreshing(folder: trash, bytes: bytes) { FileManager.default.fileExists(atPath: tree.realPath(forDisplayPath: $0)) }
+        }.value
+        // A scan that landed meanwhile may not have seen this: the next look measures it.
+        guard self.tree === tree else {
+            trashChange = nil
+            return
+        }
+        self.tree = refreshed
+        if let volumes {
+            let home = homePath
+            breakdown = await Task.detached { StorageBreakdown.compute(tree: refreshed, volumes: volumes, homePath: home) }.value
+        }
+        if let plan {
+            let row = TrashReportDetector.item(in: refreshed, homePath: homePath)
+            if let old = plan.items.first(where: { $0.ruleID == TrashReportDetector.ruleID }) {
+                self.plan = plan.replacing(old.id, with: row)
+            } else if let row {
+                self.plan = CleanupPlan(items: plan.items + [row])
+            }
+        }
+        await refreshHistory()
+        if let moved = lastOutcome?.entries.filter({ $0.state == .inTrash }), !moved.isEmpty {
+            let inTrash = Set(history.filter { $0.state == .inTrash }.map(\.id))
+            if moved.allSatisfy({ !inTrash.contains($0.id) }) { lastOutcome = nil }
+        }
+        guard !isScanning, !isRefreshing else { return }
+        save(refreshed)
+        // What went in left somewhere else, and only a scan sees where.
+        if bytes > node.totalBytes {
+            savedScan.markOutdated()
+            Task { await startScan() }
         }
     }
 
@@ -236,6 +285,7 @@ final class AppModel {
         let breakdown = await Task.detached { StorageBreakdown.compute(tree: tree, volumes: volumes, homePath: home) }.value
         // Free space may have moved on while that ran.
         if self.volumes == nil { self.volumes = volumes }
+        trashChange = nil
         self.tree = tree
         self.breakdown = breakdown
         await replan()
