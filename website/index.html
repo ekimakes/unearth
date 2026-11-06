@@ -183,10 +183,12 @@ h1 { font-size: clamp(46px, 7.4vw, 96px); line-height: 1.02; padding-top: clamp(
 .compare .n::before { content: ""; display: inline-block; width: 14px; height: 2px; border-radius: 1px; vertical-align: middle; background: rgba(21, 23, 28, .2); }
 .part p.note { max-width: 780px; padding-top: 20px; font-size: 14px; line-height: 1.45; }
 
-.part.deep { padding-inline: 0; padding-bottom: 0; background: var(--ink); color: #fff; }
+/* The last 2px are the next section's colour, so a rounded height can't show a dark line under the waves. */
+.part.deep { padding-inline: 0; padding-bottom: 0; background: linear-gradient(var(--ink) calc(100% - 2px), var(--sky) 0); color: #fff; }
 .part.deep h2, .part.deep p { padding-left: var(--gutter-l); padding-right: var(--gutter-r); }
 .part.deep p { color: #A9ADB6; }
-.ground { display: block; width: 100%; height: clamp(110px, 17vw, 240px); margin-top: clamp(40px, 6vw, 72px); }
+.ground { display: block; width: 100%; height: clamp(150px, 23vw, 320px); margin-top: clamp(40px, 6vw, 72px); }
+.ground .sky { fill: var(--sky); }
 
 .last { padding: var(--band) 20px clamp(48px, 7vw, 72px); text-align: center; }
 .last h2 { font-size: clamp(38px, 5.2vw, 62px); line-height: 1.05; }
@@ -322,7 +324,22 @@ footer {
   <section class="part deep">
     <h2>Nothing leaves your Mac.</h2>
     <p>Unearth never connects to the internet. No account. No tracking.</p>
-    <svg class="ground" viewBox="0 0 1400 240" preserveAspectRatio="none" aria-hidden="true"><path d="M0 40C220 8 440 76 700 44S1180 4 1400 36V240H0Z" fill="#C9B596"/><path d="M0 88C260 48 480 124 740 92S1200 56 1400 84V240H0Z" fill="#E3AD48"/><path d="M0 136C240 100 500 172 760 140S1220 108 1400 132V240H0Z" fill="#D4865A"/><path d="M0 186C280 158 520 212 780 180S1240 158 1400 180V240H0Z" fill="#5C6371"/></svg>
+    <!-- Only the last wave reaches the bottom: layers that share that edge leave a thin line of their colours on it. -->
+    <svg class="ground" viewBox="0 0 1400 300" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="layer-1" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="22" y2="96"><stop stop-color="#2C313B"/><stop offset="1" stop-color="#4E5461"/></linearGradient>
+        <linearGradient id="layer-2" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="70" y2="144"><stop stop-color="#5C6371"/><stop offset="1" stop-color="#B07C61"/></linearGradient>
+        <linearGradient id="layer-3" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="118" y2="192"><stop stop-color="#D4865A"/><stop offset="1" stop-color="#DEA14D"/></linearGradient>
+        <linearGradient id="layer-4" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="166" y2="238"><stop stop-color="#E3AD48"/><stop offset="1" stop-color="#D1B37F"/></linearGradient>
+        <linearGradient id="layer-5" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="212" y2="282"><stop stop-color="#C9B596"/><stop offset="1" stop-color="#D6DAD8"/></linearGradient>
+      </defs>
+      <path d="M0 34C220 2 440 70 700 38S1180-2 1400 30V292H0Z" fill="url(#layer-1)"/>
+      <path d="M0 82C260 42 480 118 740 86S1200 50 1400 78V292H0Z" fill="url(#layer-2)"/>
+      <path d="M0 130C240 94 500 166 760 134S1220 102 1400 126V292H0Z" fill="url(#layer-3)"/>
+      <path d="M0 178C280 146 520 206 780 174S1240 150 1400 172V292H0Z" fill="url(#layer-4)"/>
+      <path d="M0 224C300 200 540 246 800 220S1260 200 1400 218V292H0Z" fill="url(#layer-5)"/>
+      <path class="sky" d="M0 268C320 250 560 284 820 264S1280 252 1400 264V300H0Z"/>
+    </svg>
   </section>
 </main>
 

@@ -7,6 +7,15 @@ import UniformTypeIdentifiers
 import Vision
 @testable import UnearthCore
 
+/// Takes no work, to show what depends on Vision's threads.
+struct NoThreads: VisionRunning {
+    struct Refused: Error {}
+
+    func run<T: Sendable>(_ work: @escaping @Sendable () throws -> T) async throws -> T {
+        throw Refused()
+    }
+}
+
 struct VisionRecognizerTests {
     /// Draws black text on white into a PNG, the way a screenshot of a document looks.
     static func renderText(_ text: String, to path: String) throws {
@@ -71,6 +80,45 @@ struct VisionRecognizerTests {
         let notAnImage = try fx.file("broken.png", bytes: 64)
         await #expect(throws: (any Error).self) { try await VisionRecognizer().recognize(imageAt: notAnImage) }
         await #expect(throws: (any Error).self) { try await VisionRecognizer().recognize(imageAt: fx.path("missing.png")) }
+    }
+
+    /// On macOS 15 a text read blocks its thread until other work gets room among Swift's worker threads, so reads on
+    /// those threads froze when no worker was left idle. Nothing reaches Vision except on its own threads.
+    @Test func visionRunsOnlyOnItsOwnThreads() async throws {
+        let fx = try Fixture()
+        defer { fx.remove() }
+        let path = fx.path("a.jpg")
+        try Self.renderPicture(circleAt: 0, hue: 0.2, to: path)
+        let recognizer = VisionRecognizer(threads: NoThreads())
+        await #expect(throws: NoThreads.Refused.self) { try await recognizer.recognize(imageAt: path) }
+        await #expect(throws: NoThreads.Refused.self) { try await recognizer.recognize(imageAt: path, includingPrint: true) }
+        await #expect(throws: NoThreads.Refused.self) { try await recognizer.featurePrint(ofImageAt: path) }
+        #expect(await VisionShotScorer(threads: NoThreads()).score(imageAt: path) == nil)
+    }
+
+    /// One blocked call for each worker thread: on those threads they would leave no room for anything else.
+    @Test func visionThreadsLeaveSwiftWorkerThreadsFree() async throws {
+        let workers = ProcessInfo.processInfo.activeProcessorCount
+        let started = DispatchSemaphore(value: 0), release = DispatchSemaphore(value: 0), answered = DispatchSemaphore(value: 0)
+        let calls = Task {
+            await withTaskGroup(of: Void.self) { group in
+                for _ in 0..<workers {
+                    group.addTask { try? await VisionThreads().run { started.signal(); release.wait() } }
+                }
+            }
+        }
+        let free = await withCheckedContinuation { done in
+            DispatchQueue.global().async {
+                for _ in 0..<workers { _ = started.wait(timeout: .now() + 10) }
+                Task.detached { answered.signal() }
+                let free = answered.wait(timeout: .now() + 5) == .success
+                // Whatever the answer, so a failure here can't hang the tests.
+                for _ in 0..<workers { release.signal() }
+                done.resume(returning: free)
+            }
+        }
+        await calls.value
+        #expect(free)
     }
 
     /// A gradient with a circle (or two bars when `circleAt` is nil), saved as a JPEG.

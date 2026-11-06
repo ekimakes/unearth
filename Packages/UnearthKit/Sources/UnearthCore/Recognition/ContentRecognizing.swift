@@ -32,14 +32,36 @@ public protocol FeaturePrinting: Sendable {
     func featurePrint(ofImageAt path: String) async throws -> Data?
 }
 
+/// Where Vision's calls run. They block the thread they're on.
+public protocol VisionRunning: Sendable {
+    func run<T: Sendable>(_ work: @escaping @Sendable () throws -> T) async throws -> T
+}
+
+/// Threads for Vision alone. On macOS 15 a text read blocks its thread until other work gets room among Swift's worker
+/// threads, so reads on those threads froze when no worker was left idle. Vision's async calls start their work on
+/// those threads whatever the caller prefers, so its blocking calls run here instead.
+public struct VisionThreads: VisionRunning {
+    private static let queue = DispatchQueue(label: "com.ekimakes.unearth.vision", qos: .utility, attributes: .concurrent, autoreleaseFrequency: .workItem)
+
+    public init() {}
+
+    public func run<T: Sendable>(_ work: @escaping @Sendable () throws -> T) async throws -> T {
+        try await withCheckedThrowingContinuation { finished in
+            Self.queue.async { finished.resume(with: Result(catching: work)) }
+        }
+    }
+}
+
 /// Reads images with Apple's Vision framework, on this Mac.
 public struct VisionRecognizer: ContentRecognizing, FeaturePrinting {
     private let minimumLabelConfidence: Float
     private let maxLabels: Int
+    private let threads: any VisionRunning
 
-    public init(minimumLabelConfidence: Float = 0.3, maxLabels: Int = 8) {
+    public init(minimumLabelConfidence: Float = 0.3, maxLabels: Int = 8, threads: any VisionRunning = VisionThreads()) {
         self.minimumLabelConfidence = minimumLabelConfidence
         self.maxLabels = maxLabels
+        self.threads = threads
     }
 
     public func recognize(imageAt path: String) async throws -> RecognizedContent {
@@ -48,27 +70,31 @@ public struct VisionRecognizer: ContentRecognizing, FeaturePrinting {
 
     public func recognize(imageAt path: String, includingPrint: Bool) async throws -> RecognizedContent {
         guard LocalFile.isReadable(path) else { throw RecognitionError.notALocalFile }
-        var textRequest = RecognizeTextRequest()
-        textRequest.recognitionLevel = .accurate
-        textRequest.usesLanguageCorrection = true
-        // Not just US English: Vision finds the language, including Chinese, Japanese and Korean.
-        textRequest.automaticallyDetectsLanguage = true
-        let handler = ImageRequestHandler(URL(fileURLWithPath: path))
-        if includingPrint {
-            let (lines, classes, print) = try await handler.perform(
-                textRequest, ClassifyImageRequest(), GenerateImageFeaturePrintRequest())
-            return content(lines, classes, print: Self.data(of: print))
+        return try await threads.run { [self] in
+            let textRequest = VNRecognizeTextRequest()
+            textRequest.recognitionLevel = .accurate
+            textRequest.usesLanguageCorrection = true
+            // Not just US English: Vision finds the language, including Chinese, Japanese and Korean.
+            textRequest.automaticallyDetectsLanguage = true
+            let classifyRequest = VNClassifyImageRequest()
+            let printRequest = VNGenerateImageFeaturePrintRequest()
+            let requests: [VNRequest] = includingPrint ? [textRequest, classifyRequest, printRequest] : [textRequest, classifyRequest]
+            try VNImageRequestHandler(url: URL(fileURLWithPath: path)).perform(requests)
+            return content(textRequest.results ?? [], classifyRequest.results ?? [],
+                           print: printRequest.results?.first.flatMap(Self.data(of:)))
         }
-        let (lines, classes) = try await handler.perform(textRequest, ClassifyImageRequest())
-        return content(lines, classes, print: nil)
     }
 
     public func featurePrint(ofImageAt path: String) async throws -> Data? {
         guard LocalFile.isReadable(path) else { throw RecognitionError.notALocalFile }
-        return Self.data(of: try await ImageRequestHandler(URL(fileURLWithPath: path)).perform(GenerateImageFeaturePrintRequest()))
+        return try await threads.run {
+            let request = VNGenerateImageFeaturePrintRequest()
+            try VNImageRequestHandler(url: URL(fileURLWithPath: path)).perform([request])
+            return request.results?.first.flatMap(Self.data(of:))
+        }
     }
 
-    private func content(_ lines: [RecognizedTextObservation], _ classes: [ClassificationObservation],
+    private func content(_ lines: [VNRecognizedTextObservation], _ classes: [VNClassificationObservation],
                          print: Data?) -> RecognizedContent {
         let text = lines.compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
         // Vision names things like "golden_retriever"; people search for "golden retriever".
@@ -80,7 +106,7 @@ public struct VisionRecognizer: ContentRecognizing, FeaturePrinting {
     }
 
     /// The print's numbers as 32-bit floats, the form VisionPrintComparer reads.
-    static func data(of print: FeaturePrintObservation) -> Data? {
+    static func data(of print: VNFeaturePrintObservation) -> Data? {
         switch print.elementType {
         case .float:
             return print.data
@@ -89,7 +115,7 @@ public struct VisionRecognizer: ContentRecognizing, FeaturePrinting {
                 (0..<raw.count / 8).map { Float(raw.loadUnaligned(fromByteOffset: $0 * 8, as: Double.self)) }
             }
             return values.withUnsafeBytes { Data($0) }
-        @unknown default:
+        default:
             return nil
         }
     }
@@ -127,10 +153,18 @@ public protocol ShotScoring: Sendable {
 
 /// Vision's aesthetics score, from -1 to 1.
 public struct VisionShotScorer: ShotScoring {
-    public init() {}
+    private let threads: any VisionRunning
+
+    public init(threads: any VisionRunning = VisionThreads()) {
+        self.threads = threads
+    }
 
     public func score(imageAt path: String) async -> Float? {
         guard LocalFile.isReadable(path) else { return nil }
-        return try? await ImageRequestHandler(URL(fileURLWithPath: path)).perform(CalculateImageAestheticsScoresRequest()).overallScore
+        return try? await threads.run {
+            let request = VNCalculateImageAestheticsScoresRequest()
+            try VNImageRequestHandler(url: URL(fileURLWithPath: path)).perform([request])
+            return request.results?.first?.overallScore
+        }
     }
 }
