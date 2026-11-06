@@ -109,7 +109,7 @@ h1 { font-size: clamp(46px, 7.4vw, 96px); line-height: 1.02; padding-top: clamp(
 }
 .count b { font: 700 21px/1 var(--font-figure); letter-spacing: -.01em; font-variant-numeric: tabular-nums; text-align: right; }
 .fine { padding-top: 12px; font-size: 15px; color: var(--ink-2); text-wrap: balance; }
-.after { padding-top: 6px; font-size: 15px; font-weight: 600; }
+.after { padding-top: 6px; font-size: 15px; font-weight: 600; text-wrap: balance; }
 
 /* The video hangs over the edge of the sky into the first band. */
 .preview {
@@ -392,7 +392,7 @@ function summarize(releases) {
     link.href = `https://github.com/${RELEASE.repo}/releases/latest/download/${RELEASE.file}`;
     link.addEventListener('click', () => {
       const note = link.closest('.get').querySelector('.after');
-      note.textContent = `Open ${RELEASE.file}, then drag Unearth to Applications.`;
+      note.textContent = `Open ${RELEASE.file}, then drag Unearth to Applications. macOS will ask you to confirm the first time. Click Open.`;
       note.hidden = false;
     });
   }
