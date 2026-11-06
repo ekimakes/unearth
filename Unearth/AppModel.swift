@@ -441,10 +441,8 @@ final class AppModel {
             // Spotlight doesn't look inside the demo disk; there, when a file last changed stands in.
             lastUsed = { (try? FileManager.default.attributesOfItem(atPath: $0)[.modificationDate]) as? Date }
         }
-        let applications = scanRoot.map { Paths.join($0, "Applications") } ?? "/Applications"
         collections.refresh(CollectionsModel.Context(
-            index: index, scan: tree.id, downloads: Paths.join(home, "Downloads"), home: home,
-            appFolders: [applications, Paths.join(home, "Applications")],
+            index: index, scan: tree.id, downloads: Paths.join(home, "Downloads"), home: home, appFolders: appFolders,
             systemLibrary: scanRoot.map { Paths.join($0, "Library") } ?? "/Library",
             isInCodeProject: isInCodeProject, lastUsed: lastUsed), after: soon ? .seconds(20) : .zero)
     }
@@ -479,7 +477,9 @@ final class AppModel {
     private func move(_ items: [CleanupItem], kind: CollectionKind? = nil) async {
         trashProgress = TrashProgress(done: 0, total: items.count)
         let step = max(1, items.count / 100)
-        let outcome = await makeEngine().moveToTrash(items) { [weak self] done in
+        let apps = await installedApps(at: PickedApps.candidates(in: items))
+        let outcome = await PickedApps.moveToTrash(items, apps: apps, isRunning: RunningApps.isRunning, engine: makeEngine(),
+                                                   appEngine: makeAppEngine()) { [weak self] done in
             guard done % step == 0 else { return }
             Task { @MainActor in self?.trashProgress?.done = done }
         }
@@ -718,16 +718,41 @@ final class AppModel {
     /// app and its own preferences file through; an app installed for all users asks for a password.
     func uninstall(_ app: InstalledApp) async {
         guard let items = Uninstall.items(for: app) else { return }
-        let home = realPath(homePath)
-        let engine = CleanupEngine(
-            safetyGuard: SafetyGuard(homePath: home, neverTouch: settings.neverTouch.map(realPath),
-                                     uninstalling: Uninstall.exception(for: app, home: home)),
-            trash: UninstallTrash(appPath: app.path, home: home, base: SystemTrash(admin: adminMover, home: home), admin: adminMover),
-            runner: runner, history: historyStore, dryRun: options.dryRun, isRunning: RunningApps.isRunning)
-        let outcome = await Uninstall.perform(items, engine: engine)
+        let outcome = await Uninstall.perform(items, engine: makeAppEngine()(app))
         let moved = outcome.entries.contains { $0.originalPath == app.path && $0.state == .inTrash }
         await report(outcome, removed: moved ? [app.name] : [])
         await afterCleanup()
+    }
+
+    /// Makes the engine for removing one app: the Safety Guard lets it through, and macOS asks for a password if
+    /// the app was installed for all users.
+    private func makeAppEngine() -> @Sendable (InstalledApp) -> CleanupEngine {
+        let home = realPath(homePath)
+        let neverTouch = settings.neverTouch.map(realPath)
+        let (admin, runner, history, dryRun) = (adminMover, runner, historyStore, options.dryRun)
+        return { app in
+            CleanupEngine(
+                safetyGuard: SafetyGuard(homePath: home, neverTouch: neverTouch, uninstalling: Uninstall.exception(for: app, home: home)),
+                trash: UninstallTrash(appPath: app.path, home: home, base: SystemTrash(admin: admin, home: home), admin: admin,
+                                      needsAdmin: app.needsAdmin),
+                runner: runner, history: history, dryRun: dryRun, isRunning: RunningApps.isRunning)
+        }
+    }
+
+    /// The installed apps at these paths, by path. Reading them takes a moment, so it's off the main thread.
+    func installedApps(at paths: [String]) async -> [String: InstalledApp] {
+        guard !paths.isEmpty else { return [:] }
+        let home = realPath(homePath)
+        let folders = appFolders
+        return await Task.detached {
+            Dictionary(paths.compactMap { path in AppInventory.app(at: path, in: folders, home: home).map { (path, $0) } },
+                       uniquingKeysWith: { first, _ in first })
+        }.value
+    }
+
+    /// Where installed apps live.
+    private var appFolders: [String] {
+        [options.scanRoot.map { Paths.join($0, "Applications") } ?? "/Applications", Paths.join(realPath(homePath), "Applications")]
     }
 
     /// On the startup disk display paths are real paths; on a fake disk they're mapped into it.

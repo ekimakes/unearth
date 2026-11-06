@@ -15,7 +15,9 @@ Then open http://localhost:4173.
 The number next to the button is GitHub's own count. On load, the page asks `https://api.github.com/repos/ekimakes/unearth/releases?per_page=100` and adds up `download_count` for every file of every release.
 
 - It counts downloads, not unique people. One person downloading twice counts twice.
-- GitHub allows 60 of these requests an hour per visitor, so the page keeps the answer in `localStorage` for 10 minutes.
+- GitHub allows 60 of these requests an hour per visitor, so the page keeps the answer in `localStorage` for a minute, which is also how old GitHub's answer can be.
+- A click on the button adds one on screen right away for the person who clicked. GitHub counts it a moment later, and its number takes over once it has caught up. A click that never reaches GitHub's count stops showing after 10 minutes.
+- Other visitors see a new download the next time they load the page. The site has no server of its own, so it can't update a page that's already open.
 - If GitHub can't be reached, the page shows the last number that visitor saw. With nothing saved, it shows the button alone. It never shows a made-up number.
 - At zero it says "Be the first to download".
 - Until the repository and a first release exist, GitHub answers 404: the number stays hidden, and the console logs that 404.

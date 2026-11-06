@@ -75,10 +75,12 @@ public struct CleanupItem: Identifiable, Sendable, Hashable {
         safety == .safe && action == .trash && blockedReason == nil
     }
 
+    static let pickedRuleID = "manual"
+
     /// Something the user picked themselves, like a folder in the Disk Map. Unearth can't vouch for it.
     public static func picked(path: String, bytes: Int64, what: String) -> CleanupItem {
         CleanupItem(
-            ruleID: "manual", section: .manual, group: "Picked by you", title: (path as NSString).lastPathComponent,
+            ruleID: pickedRuleID, section: .manual, group: "Picked by you", title: (path as NSString).lastPathComponent,
             subtitle: nil, paths: [path], bytes: bytes, safety: .careful, action: .trash,
             explanation: Explanation(what: what, regrows: "Only if an app recreates it.", safeToDelete: "Only if you know what it is."),
             owner: nil, blockedReason: nil)

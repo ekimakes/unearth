@@ -26,7 +26,7 @@ public struct SafetyGuard: Sendable {
     /// /Applications and ~/Library/Preferences. Nil unless it's an app in Applications and a plist in Preferences.
     private let uninstalling: UninstallException?
 
-    /// `uninstalling` is only ever passed by the Unused apps flow, for the one app being removed.
+    /// `uninstalling` is only ever passed when the user removes an app, by hand or from Unused apps, for that one app.
     public init(homePath home: String, neverTouch: [String], extraAllowedRoots: [String] = [],
                 uninstalling: UninstallException? = nil) {
         let temp = TempFilesDetector.defaultTempDirectory()

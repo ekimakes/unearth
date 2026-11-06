@@ -4,11 +4,15 @@ import Foundation
 public enum AdminMoveError: Error, LocalizedError, Equatable {
     case cancelled
     case failed
+    /// The app is the user's, so a password wouldn't help: macOS itself said no.
+    case blockedByMacOS
 
     public var errorDescription: String? {
         switch self {
         case .cancelled: "You cancelled the password prompt, so the app stayed where it was."
         case .failed: "Unearth couldn't move this app. Drag it to the Trash in Finder."
+        case .blockedByMacOS:
+            "macOS stopped Unearth from moving this app. Turn on Unearth in System Settings › Privacy & Security › App Management, then try again."
         }
     }
 }
@@ -68,18 +72,22 @@ public struct UninstallTrash: Trashing {
     private let home: String
     private let base: any Trashing
     private let admin: AdminMover
+    private let needsAdmin: Bool
 
-    public init(appPath: String, home: String, base: any Trashing = SystemTrash(), admin: AdminMover) {
+    /// `needsAdmin` is false for an app the user owns in a folder they can write to, where a password changes nothing.
+    public init(appPath: String, home: String, base: any Trashing = SystemTrash(), admin: AdminMover, needsAdmin: Bool = true) {
         self.appPath = appPath
         self.home = home
         self.base = base
         self.admin = admin
+        self.needsAdmin = needsAdmin
     }
 
     public func trash(_ path: String) async throws -> String {
         do {
             return try await base.trash(path)
         } catch let error where path == appPath && AdminMover.isPermissionError(error) {
+            guard needsAdmin else { throw AdminMoveError.blockedByMacOS }
             let destination = Self.freePath(in: Paths.join(home, ".Trash"), for: (path as NSString).lastPathComponent)
             let name = ((path as NSString).lastPathComponent as NSString).deletingPathExtension
             try await admin.move(path, to: destination,

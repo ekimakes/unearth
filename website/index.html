@@ -372,7 +372,8 @@ const RELEASE = { repo: 'ekimakes/unearth', file: 'Unearth.dmg' };
 
 const RELEASES_API = `https://api.github.com/repos/${RELEASE.repo}/releases?per_page=100`;
 const SAVED_KEY = 'unearth.downloads';
-const SAVED_FOR = 10 * 60 * 1000; // GitHub allows 60 requests an hour per visitor.
+const SAVED_FOR = 60 * 1000; // GitHub allows 60 requests an hour per visitor, and its answer can be a minute old anyway.
+const CLICK_HOLDS_FOR = 10 * 60 * 1000; // A click that never reaches GitHub's count stops showing after this.
 
 /// What the page needs from GitHub's list of releases: downloads of every file of every release, and the newest
 /// release's version and size.
@@ -398,6 +399,7 @@ function summarize(releases) {
       const note = link.closest('.get').querySelector('.after');
       note.textContent = `Open ${RELEASE.file}, then drag Unearth to Applications. macOS will ask you to confirm the first time. Click Open.`;
       note.hidden = false;
+      countClick();
     });
   }
   for (const link of document.querySelectorAll('[data-source]')) link.href = `https://github.com/${RELEASE.repo}`;
@@ -425,7 +427,25 @@ function summarize(releases) {
     requestAnimationFrame(step);
   }
 
-  function show({ total, version, bytes }) {
+  /// GitHub's number, or the one this visitor's last click left on screen while GitHub catches up, so it never drops.
+  function shownTotal({ total, clicked }) {
+    return clicked && Date.now() - clicked.at < CLICK_HOLDS_FOR ? Math.max(total, clicked.total) : total;
+  }
+
+  let latest = null;
+
+  /// A click shows at once. GitHub counts it a moment later, and its number takes over when it's caught up.
+  function countClick() {
+    if (!latest) return;
+    latest = { ...latest, clicked: { total: shownTotal(latest) + 1, at: Date.now() } };
+    save(latest);
+    show(latest);
+  }
+
+  function show(summary) {
+    latest = summary;
+    const { version, bytes } = summary;
+    const total = shownTotal(summary);
     for (const box of document.querySelectorAll('.count')) {
       const [figure, label] = box.children;
       box.hidden = false;
@@ -452,7 +472,7 @@ function summarize(releases) {
     try {
       const answer = await fetch(RELEASES_API);
       if (!answer.ok) return;
-      const summary = { ...summarize(await answer.json()), at: Date.now() };
+      const summary = { ...summarize(await answer.json()), at: Date.now(), clicked: latest?.clicked };
       save(summary);
       show(summary);
     } catch {

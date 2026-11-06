@@ -110,6 +110,20 @@ struct AdminMoverTests {
         #expect(AdminMoveError.failed.localizedDescription == "Unearth couldn't move this app. Drag it to the Trash in Finder.")
     }
 
+    /// A password can't help with an app that's already the user's: macOS is what stopped the move, and it says how to
+    /// allow it.
+    @Test func anAppTheUserOwnsNeverAsksForAPassword() async throws {
+        let rig = try Rig(.move)
+        defer { rig.fx.remove() }
+        let trash = UninstallTrash(appPath: rig.app, home: rig.home, base: DeniedTrash(), admin: AdminMover(runner: rig.runner),
+                                   needsAdmin: false)
+        await #expect(throws: AdminMoveError.blockedByMacOS) { try await trash.trash(rig.app) }
+        #expect(rig.runner.recorded.isEmpty)
+        #expect(rig.exists(rig.app))
+        #expect(AdminMoveError.blockedByMacOS.localizedDescription
+            == "macOS stopped Unearth from moving this app. Turn on Unearth in System Settings › Privacy & Security › App Management, then try again.")
+    }
+
     @Test func undoAsksForAdminOnlyForAppsGoingBackToApplications() async throws {
         let fx = try Fixture()
         let home = try fx.dir("home")

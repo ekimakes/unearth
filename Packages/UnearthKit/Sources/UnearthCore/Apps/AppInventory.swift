@@ -45,16 +45,38 @@ public enum AppInventory {
                 if isApp(entry) {
                     apps += app(at: path, vendor: nil, home: home, lastUsed: lastUsed, systemLibrary: systemLibrary, reader)
                 } else if !FileKinds.isPackage(name: entry) {
-                    // Apps one folder down came with their vendor's folder (Utilities is Apple's own).
-                    let vendor = entry == "Utilities" ? nil : (entry as NSString).deletingPathExtension
                     for inner in directories(in: path, reader) where isApp(inner) {
-                        apps += app(at: Paths.join(path, inner), vendor: vendor, home: home, lastUsed: lastUsed,
+                        apps += app(at: Paths.join(path, inner), vendor: vendor(ofFolder: entry), home: home, lastUsed: lastUsed,
                                     systemLibrary: systemLibrary, reader)
                     }
                 }
             }
         }
         return apps
+    }
+
+    /// The app at `path`, if it's in one of `folders`, directly or one folder down. Nil for anything else.
+    public static func app(
+        at path: String, in folders: [String], home: String, lastUsed: (String) -> Date? = { _ in nil },
+        systemLibrary: String = "/Library", reader: any DirectoryReading = BulkDirectoryReader()
+    ) -> InstalledApp? {
+        guard isApp((path as NSString).lastPathComponent) else { return nil }
+        let parent = (path as NSString).deletingLastPathComponent
+        let folder = (parent as NSString).lastPathComponent
+        let vendor: String?
+        if folders.contains(parent) {
+            vendor = nil
+        } else if folders.contains((parent as NSString).deletingLastPathComponent), !FileKinds.isPackage(name: folder) {
+            vendor = self.vendor(ofFolder: folder)
+        } else {
+            return nil
+        }
+        return app(at: path, vendor: vendor, home: home, lastUsed: lastUsed, systemLibrary: systemLibrary, reader).first
+    }
+
+    /// Apps one folder down came with their vendor's folder (Utilities is Apple's own).
+    private static func vendor(ofFolder name: String) -> String? {
+        name == "Utilities" ? nil : (name as NSString).deletingPathExtension
     }
 
     /// Apps not opened for `days`, largest first. Apple's apps and apps Spotlight has no date for never count.

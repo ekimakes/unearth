@@ -369,6 +369,8 @@ struct TrashConfirmation: ViewModifier {
         let paths: [String]
         let bytes: Int64
         let cloudOnly: Int
+        /// Apps among them that macOS will ask an administrator's password to move.
+        let needPassword: [String]
     }
 
     func body(content: Content) -> some View {
@@ -378,8 +380,10 @@ struct TrashConfirmation: ViewModifier {
                 let paths = files.map(\.path)
                 let cloudOnly = files.filter(\.isCloudOnly).count
                 let bytes = await Task.detached { paths.reduce(Int64(0)) { $0 + DiskUsage.onDisk($1) } }.value
+                let apps = await model.installedApps(at: paths.filter { $0.lowercased().hasSuffix(".app") }).values
                 guard !Task.isCancelled else { return }
-                measured = Measured(paths: paths, bytes: bytes, cloudOnly: cloudOnly)
+                measured = Measured(paths: paths, bytes: bytes, cloudOnly: cloudOnly,
+                                    needPassword: apps.filter { $0.needsAdmin && PickedApps.refusal(for: $0) == nil }.map(\.name).sorted())
             }
             .alert(title, isPresented: Binding(
                 get: { !files.isEmpty && measured?.paths == files.map(\.path) },
@@ -408,6 +412,11 @@ struct TrashConfirmation: ViewModifier {
         if let cloudOnly = measured?.cloudOnly, cloudOnly > 0 {
             text += one ? " It's only in iCloud, so the Trash won't free space here."
                         : " \(cloudOnly.formatted()) of them are only in iCloud and free no space here."
+        }
+        if let names = measured?.needPassword, !names.isEmpty {
+            text += " macOS will ask for an administrator's password, because "
+                + (names.count == 1 ? "\(names[0]) was" : "\(names.count.formatted()) of these apps were")
+                + " installed for all users of this Mac."
         }
         return text + (one ? " You can put it back from the Trash until you empty it."
                            : " You can put them back from the Trash until you empty it.")

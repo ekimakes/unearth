@@ -61,7 +61,10 @@ struct CleanupResultBanner: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(headline).font(.headline)
                 if let detail { Text(detail).foregroundStyle(.secondary) }
-                if !outcome.failures.isEmpty {
+                if outcome.entries.isEmpty, outcome.failures.count == 1 {
+                    // With nothing else to report, the reason is the message.
+                    Text(outcome.failures[0].reason).foregroundStyle(.secondary)
+                } else if !outcome.failures.isEmpty {
                     Button(outcome.failures.count == 1 ? "1 item was skipped" : "\(outcome.failures.count) items were skipped") {
                         showingSkipped.toggle()
                     }
