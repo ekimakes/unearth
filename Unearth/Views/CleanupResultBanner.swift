@@ -7,9 +7,36 @@ struct TrashProgressBanner: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(progress.total == 1 ? "Moving to the Trash…" : "Moving \(progress.done.formatted()) of \(progress.total.formatted()) to the Trash…")
-                .font(.headline)
+            Text(title).font(.headline)
             ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1))).progressViewStyle(.linear).tint(.unearth)
+        }
+        .padding(16)
+        .galleryCard()
+    }
+
+    private var title: String {
+        let count = "\(progress.done.formatted()) of \(progress.total.formatted())"
+        if progress.deleting { return progress.total == 1 ? "Deleting permanently…" : "Deleting \(count) permanently…" }
+        return progress.total == 1 ? "Moving to the Trash…" : "Moving \(count) to the Trash…"
+    }
+}
+
+/// Shown once things have left the Trash for good: what went, and the space that's back.
+struct DeletedBanner: View {
+    let result: DeletionResult
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "checkmark.circle.fill").font(.title2).foregroundStyle(Color.green)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(result.headline).font(.headline)
+                Text(result.detail).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 12)
+            Button { model.lastDeleted = nil } label: { Image(systemName: "xmark").foregroundStyle(.secondary) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss")
         }
         .padding(16)
         .galleryCard()

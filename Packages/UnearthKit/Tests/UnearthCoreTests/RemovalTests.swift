@@ -213,6 +213,17 @@ struct RemovalTests {
         #expect(CleanupMessage.detail(bytes: 1_400_000) == "\(size) moved to the Trash. Empty the Trash to get the space back.")
     }
 
+    @Test func deletingSaysWhatWentForGood() {
+        #expect(CleanupMessage.deleted(["IMG_2041.jpg"]) == "Deleted “IMG_2041.jpg” permanently")
+        #expect(CleanupMessage.deleted(["a", "b", "c"]) == "Deleted 3 items permanently")
+    }
+
+    @Test func deletingSaysTheSpaceIsBack() {
+        let size = ByteFormatting.string(1_400_000)
+        #expect(CleanupMessage.deletedDetail(bytes: 1_400_000) == "\(size) of space is back.")
+        #expect(CleanupMessage.deletedDetail(bytes: 0) == "This freed no space on this Mac.")
+    }
+
     @Test func nothingFreedIsSaidPlainly() {
         #expect(CleanupMessage.detail(bytes: 0) == "Moved to the Trash. This frees no space on this Mac.")
     }

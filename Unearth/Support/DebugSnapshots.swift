@@ -36,6 +36,11 @@ enum DebugSnapshots {
             NSApp.terminate(nil)
             return
         }
+        if model.options.freeSpaceCheck {
+            await checkFreeSpace(model, directory: directory)
+            NSApp.terminate(nil)
+            return
+        }
         if model.options.scanRoot != nil {
             // The demo disk's files are small and new, so loosen the Large & Old Files filters (not saved).
             model.settings.largeFileThreshold = 50_000_000
@@ -493,6 +498,76 @@ enum DebugSnapshots {
         } catch {
             note("real Trash: \(error.localizedDescription)")
         }
+    }
+
+    /// On a sample disk on a volume of its own: moves a file to the Trash, where the meter should stay put, deletes it
+    /// for good, then changes the disk behind the app's back, as emptying the Trash in Finder or a download does. Says
+    /// how soon the meter followed each one.
+    private static func checkFreeSpace(_ model: AppModel, directory: String) async {
+        var report = ""
+        func note(_ line: String) {
+            report += line + "\n"
+            try? report.write(toFile: Paths.join(directory, "free-space-check.txt"), atomically: true, encoding: .utf8)
+        }
+        func device(_ path: String) -> dev_t? {
+            var info = stat()
+            return lstat(path, &info) == 0 ? info.st_dev : nil
+        }
+        guard let root = model.options.scanRoot, !model.options.dryRun, let disk = device(root), disk != device(NSHomeDirectory()) else {
+            note("Refused: only on a sample disk on a volume of its own, outside safe mode.")
+            return
+        }
+        let clock = ContinuousClock()
+        func waitUntil(_ limit: Duration, _ done: () -> Bool) async {
+            let end = clock.now + limit
+            while !done(), clock.now < end { try? await Task.sleep(for: .milliseconds(5)) }
+        }
+        func picture(_ name: String) {
+            guard let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeKey }), let view = window.contentView,
+                  let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
+            view.cacheDisplay(in: view.bounds, to: bitmap)
+            try? bitmap.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: Paths.join(directory, name + ".png")))
+        }
+        func free() -> Int64 { model.volumes?.container.free ?? -1 }
+        let folder = "/Users/demo/Downloads"
+        let first = Paths.join(root + folder, "big-1.bin"), second = Paths.join(root + folder, "big-2.bin"), third = Paths.join(root + folder, "big-3.bin")
+        let size = DiskUsage.onDisk(first)
+
+        await waitUntil(.seconds(60)) { model.tree != nil && !model.isScanning && !model.isRefreshing }
+        note("Start: the meter says \(free()), each file takes \(size)")
+
+        let start = free()
+        await model.moveToTrash([CleanupItem.picked(path: Paths.join(folder, "big-1.bin"), bytes: size, what: "A sample file.")])
+        await waitUntil(.seconds(60)) { !model.isScanning && !model.isRefreshing }
+        try? await Task.sleep(for: .seconds(3))
+        note("Moved to the Trash: \(model.lastRemoved ?? "nothing"). The meter went from \(start) to \(free()). Failures: \(model.lastFailures.count)")
+        picture("free-space-1-in-trash")
+        guard let entries = model.lastOutcome?.entries.filter({ $0.state == .inTrash }), !entries.isEmpty else {
+            note("Nothing moved, so nothing to delete.")
+            return
+        }
+
+        let before = free()
+        let began = clock.now
+        Task { await model.deletePermanently(entries.map(\.id)) }
+        await waitUntil(.seconds(5)) { model.trashProgress != nil }
+        note("While deleting the banner has: \(model.trashProgress.map { "\($0.done) of \($0.total), deleting: \($0.deleting)" } ?? "nothing")")
+        await waitUntil(.seconds(30)) { model.lastDeleted != nil }
+        note("Done after \(clock.now - began). Says: \(model.lastDeleted?.headline ?? "nothing"). \(model.lastDeleted?.detail ?? "")")
+        await waitUntil(.seconds(8)) { free() >= before + size / 2 }
+        note("Deleted for good: the meter went from \(before) to \(free()) after \(clock.now - began)")
+        picture("free-space-2-deleted")
+
+        func timed(_ name: String, _ change: () -> Void, until moved: @escaping (Int64, Int64) -> Bool) async {
+            let before = free()
+            let began = clock.now
+            change()
+            await waitUntil(.seconds(8)) { moved(before, free()) }
+            note("\(name): the meter went from \(before) to \(free()) after \(clock.now - began)")
+        }
+        await waitUntil(.seconds(60)) { !model.isScanning && !model.isRefreshing }
+        await timed("Removed behind the app's back", { try? FileManager.default.removeItem(atPath: second) }) { $1 >= $0 + size / 2 }
+        await timed("A download landed", { FileManager.default.createFile(atPath: third, contents: Data(repeating: 1, count: Int(size))) }) { $1 <= $0 - size / 2 }
     }
 
     /// Moves things to the Trash with their page open, the way the confirmation's button does, writing how long they

@@ -32,6 +32,14 @@ enum ScanPhase: Equatable {
 struct TrashProgress: Equatable {
     var done: Int
     let total: Int
+    /// Leaving the Trash for good, rather than moving into it.
+    var deleting = false
+}
+
+/// What a permanent delete did, for the banner.
+struct DeletionResult: Equatable {
+    let headline: String
+    let detail: String
 }
 
 /// Everything the window shows, and the only place that starts scans and cleanups.
@@ -53,7 +61,9 @@ final class AppModel {
     /// What the result banner calls what moved: "Removed 12 duplicates".
     private(set) var lastRemoved: String?
     var lastFailures: [CleanupFailure] = []
-    /// Files on their way to the Trash, while any are.
+    /// What's shown once things have left the Trash for good.
+    var lastDeleted: DeletionResult?
+    /// Files on their way to the Trash, or out of it for good, while any are.
     private(set) var trashProgress: TrashProgress?
     var history: [HistoryEntry] = []
     var sidebarSelection: SidebarItem? = .home
@@ -106,6 +116,7 @@ final class AppModel {
         #if DEBUG
         collections.onLooked = { [weak self] in self?.writeReport() }
         #endif
+        watchFreeSpace()
     }
 
     var isScanning: Bool {
@@ -195,6 +206,20 @@ final class AppModel {
 
     private var scanRootPath: String { options.scanRoot ?? "/System/Volumes/Data" }
 
+    /// Free space changes without Unearth being told: the Trash empties, a download lands. It costs next to nothing
+    /// to read, so the meter keeps up by reading it every couple of seconds instead of waiting for a scan.
+    private func watchFreeSpace() {
+        guard options.scanRoot == nil || options.freeSpaceCheck else { return }
+        let path = options.scanRoot ?? "/"
+        Task { [weak self] in
+            while self != nil {
+                try? await Task.sleep(for: .seconds(2), tolerance: .seconds(1))
+                let available = await Task.detached { VolumeInventory.availableCapacity(at: path) }.value
+                if let available, let changed = self?.volumes?.refreshed(available: available) { self?.volumes = changed }
+            }
+        }
+    }
+
     private func loadVolumes() async -> Bool {
         guard options.scanRoot == nil else { return true }
         guard let volumes = try? await VolumeInventory.load(runner: runner) else { return false }
@@ -204,10 +229,13 @@ final class AppModel {
 
     /// Puts a scan on screen: its breakdown, and a plan made from it.
     private func show(_ tree: ScanTree) async {
-        let volumes = self.volumes ?? DemoVolumes.make(scannedBytes: tree.node(tree.rootID).totalBytes)
+        let volumes = self.volumes ?? DemoVolumes.make(
+            scannedBytes: tree.node(tree.rootID).totalBytes,
+            available: options.freeSpaceCheck ? VolumeInventory.availableCapacity(at: scanRootPath) : nil)
         let home = homePath
         let breakdown = await Task.detached { StorageBreakdown.compute(tree: tree, volumes: volumes, homePath: home) }.value
-        self.volumes = volumes
+        // Free space may have moved on while that ran.
+        if self.volumes == nil { self.volumes = volumes }
         self.tree = tree
         self.breakdown = breakdown
         await replan()
@@ -415,6 +443,7 @@ final class AppModel {
     private func report(_ outcome: CleanupOutcome, removed titles: [String], kind: CollectionKind? = nil) async {
         lastOutcome = outcome
         lastFailures = outcome.failures
+        lastDeleted = nil
         lastRemoved = titles.isEmpty ? nil : CleanupMessage.removed(titles, kind: kind)
         let moved = outcome.entries.filter { $0.state == .inTrash }.compactMap { entry in
             entry.originalPath.map { (path: $0, bytes: entry.bytes) }
@@ -536,6 +565,7 @@ final class AppModel {
         let outcome = await makeEngine().runTool(item)
         lastOutcome = outcome
         lastFailures = outcome.failures
+        lastDeleted = nil
         // A finished tool did its cleaning; the scan that follows shows whatever it left.
         if !options.dryRun, outcome.failures.isEmpty, let plan {
             self.plan = CleanupPlan(items: plan.items.filter { $0.id != item.id })
@@ -570,10 +600,27 @@ final class AppModel {
         await afterCleanup()
     }
 
+    /// Deletes things from the Trash for good. A big delete takes minutes, so its progress is on screen, the meter
+    /// climbs as it goes, and a message says what went.
     func deletePermanently(_ ids: [UUID]) async {
-        lastFailures = await makeEngine().deletePermanently(ids)
-        if let outcome = lastOutcome, Set(outcome.entries.map(\.id)).isSubset(of: Set(ids)) { lastOutcome = nil }
-        await refreshHistory()
+        lastDeleted = nil
+        trashProgress = TrashProgress(done: 0, total: ids.count, deleting: true)
+        let step = max(1, ids.count / 100)
+        lastFailures = await makeEngine().deletePermanently(ids) { [weak self] done in
+            guard done % step == 0 else { return }
+            Task { @MainActor in self?.trashProgress?.done = done }
+        }
+        trashProgress = nil
+        let picked = Set(ids)
+        if let outcome = lastOutcome, Set(outcome.entries.filter { $0.state == .inTrash }.map(\.id)).isSubset(of: picked) {
+            lastOutcome = nil
+        }
+        await afterCleanup()
+        let deleted = history.filter { picked.contains($0.id) && $0.state == .deletedPermanently }
+        if !deleted.isEmpty {
+            lastDeleted = DeletionResult(headline: CleanupMessage.deleted(deleted.map(\.title)),
+                                         detail: CleanupMessage.deletedDetail(bytes: deleted.reduce(0) { $0 + $1.bytes }))
+        }
     }
 
     func refreshHistory() async {
@@ -726,7 +773,7 @@ final class AppModel {
 
 /// Believable volume numbers for a fake disk, scaled to what was scanned.
 enum DemoVolumes {
-    static func make(scannedBytes data: Int64) -> VolumeInventory {
+    static func make(scannedBytes data: Int64, available: Int64? = nil) -> VolumeInventory {
         let volumes = [
             APFSVolume(deviceIdentifier: "demo1", name: "Macintosh HD", roles: ["System"], capacityInUse: data / 4),
             APFSVolume(deviceIdentifier: "demo2", name: "Data", roles: ["Data"], capacityInUse: data),
@@ -736,7 +783,8 @@ enum DemoVolumes {
         let used = volumes.reduce(0) { $0 + $1.capacityInUse }
         let free = data / 3
         let container = APFSContainer(reference: "demo", capacity: used + free, free: free, volumes: volumes)
-        return VolumeInventory(container: container, available: free, availableForImportantUsage: free + data / 50)
+        let available = available ?? free
+        return VolumeInventory(container: container, available: available, availableForImportantUsage: available + data / 50)
     }
 }
 

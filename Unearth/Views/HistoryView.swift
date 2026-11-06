@@ -31,7 +31,9 @@ struct HistoryView: View {
                     .padding(.horizontal, 20)
                 }
             }
-            if !model.lastFailures.isEmpty {
+            if let progress = model.trashProgress {
+                TrashProgressBanner(progress: progress).padding(16)
+            } else if !model.lastFailures.isEmpty {
                 FailureBanner(failures: model.lastFailures).padding(16)
             }
         }
@@ -62,8 +64,11 @@ struct HistoryView: View {
             Text(Self.stateLabel(entry)).font(.callout).foregroundStyle(.secondary)
             SizeLabel(bytes: entry.bytes).frame(minWidth: 70, alignment: .trailing)
             if entry.state == .inTrash {
-                Button("Undo") { Task { await model.undo([entry.id]) } }
-                Button("Delete…") { confirmingDelete = entry }
+                Group {
+                    Button("Undo") { Task { await model.undo([entry.id]) } }
+                    Button("Delete…") { confirmingDelete = entry }
+                }
+                .disabled(model.trashProgress != nil)
             }
         }
         .padding(.vertical, 10)

@@ -27,6 +27,48 @@ struct VolumeInventoryTests {
         #expect(VolumeInventory(container: container, available: 60, availableForImportantUsage: 40).purgeable == 0)
     }
 
+    private func disk(free: Int64, available: Int64) -> VolumeInventory {
+        let system = APFSVolume(deviceIdentifier: "disk3s1", name: "Macintosh HD", roles: ["System"], capacityInUse: 12_000_000_000)
+        let container = APFSContainer(reference: "disk3", capacity: 1_000_000_000_000, free: free, volumes: [system])
+        return VolumeInventory(container: container, available: available, availableForImportantUsage: available + 7_000_000_000)
+    }
+
+    @Test func freeSpaceFollowsTheDisk() throws {
+        let before = disk(free: 118_000_000_000, available: 117_900_000_000)
+        let after = try #require(before.refreshed(available: 375_900_000_000))
+        #expect(after.container.free == 376_000_000_000)
+        #expect(after.used == 624_000_000_000)
+        #expect(after.available == 375_900_000_000)
+        #expect(after.purgeable == before.purgeable)
+        #expect(after.container.capacity == before.container.capacity)
+        #expect(after.container.volumes == before.container.volumes)
+    }
+
+    @Test func freeSpaceFallsToo() throws {
+        let before = disk(free: 118_000_000_000, available: 118_000_000_000)
+        let after = try #require(before.refreshed(available: 100_000_000_000))
+        #expect(after.container.free == 100_000_000_000)
+    }
+
+    @Test func changesTooSmallToShowAreLeftOut() {
+        let before = disk(free: 118_000_000_000, available: 118_000_000_000)
+        #expect(before.refreshed(available: before.available + 9_999_999) == nil)
+        #expect(before.refreshed(available: before.available - 9_999_999) == nil)
+        #expect(before.refreshed(available: before.available + 10_000_000) != nil)
+    }
+
+    @Test func freeSpaceStaysWithinTheDisk() throws {
+        let nearlyEmpty = disk(free: 990_000_000_000, available: 990_000_000_000)
+        #expect(try #require(nearlyEmpty.refreshed(available: 1_090_000_000_000)).container.free == 1_000_000_000_000)
+        let nearlyFull = disk(free: 1_000_000_000, available: 5_000_000_000)
+        #expect(try #require(nearlyFull.refreshed(available: 1_000_000_000)).container.free == 0)
+    }
+
+    @Test func readsWhatsAvailableOnAVolume() throws {
+        #expect(try #require(VolumeInventory.availableCapacity(at: NSTemporaryDirectory())) > 0)
+        #expect(VolumeInventory.availableCapacity(at: "/no/such/folder/anywhere") == nil)
+    }
+
     @Test func loadsUsingFakeRunner() async throws {
         let runner = FakeCommandRunner([
             "/usr/sbin/diskutil info -plist /": .success(try Fixtures.data("diskutil-info-root.plist")),

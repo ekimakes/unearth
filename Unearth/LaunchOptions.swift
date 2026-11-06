@@ -30,6 +30,9 @@ struct LaunchOptions {
     /// With a snapshot directory: move things to the Trash with their pages open, time how soon they leave, and quit.
     /// Refused unless the sample disk is on a volume of its own, so nothing reaches the real Trash.
     var removalCheck = false
+    /// With a snapshot directory: delete things for good and change the disk behind the app's back, time how soon the
+    /// free-space meter follows, and quit. Refused unless the sample disk is on a volume of its own.
+    var freeSpaceCheck = false
     /// After each scan, write its numbers here as JSON (for checking a real-disk run).
     var reportFile: String?
 
@@ -51,6 +54,7 @@ struct LaunchOptions {
         options.openCheck = flag("UnearthOpenCheck")
         options.overviewCheck = flag("UnearthOverviewCheck")
         options.removalCheck = flag("UnearthRemovalCheck")
+        options.freeSpaceCheck = flag("UnearthFreeSpaceCheck")
         options.reportFile = text("UnearthReportFile")
         #endif
         return options

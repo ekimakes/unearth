@@ -386,4 +386,28 @@ struct CleanupEngineTests {
         }
         #expect(seen.withLock { $0 } == [1, 2])
     }
+
+    @Test func deletingCountsEveryItem() async throws {
+        let rig = try Rig()
+        defer { rig.fx.remove() }
+        try rig.fx.file("home/Library/Caches/com.foo/blob", bytes: 4_000)
+        try rig.fx.file("home/Library/Caches/com.bar/blob", bytes: 4_000)
+        let outcome = await rig.engine.moveToTrash([rig.item("Library/Caches/com.foo"), rig.item("Library/Caches/com.bar")])
+        let seen = Mutex<[Int]>([])
+        _ = await rig.engine.deletePermanently(outcome.entries.map(\.id)) { done in
+            seen.withLock { $0.append(done) }
+        }
+        #expect(seen.withLock { $0 } == [1, 2])
+    }
+
+    @Test func deletingCountsWhatItRefuses() async throws {
+        let rig = try Rig()
+        defer { rig.fx.remove() }
+        let seen = Mutex<[Int]>([])
+        let failures = await rig.engine.deletePermanently([UUID()]) { done in
+            seen.withLock { $0.append(done) }
+        }
+        #expect(failures.count == 1)
+        #expect(seen.withLock { $0 } == [1])
+    }
 }

@@ -64,8 +64,13 @@ struct RootView: View {
             TrashProgressBanner(progress: progress).padding(.horizontal, 24).padding(.top, 12)
         } else if let outcome = model.lastOutcome {
             CleanupResultBanner(outcome: outcome).padding(.horizontal, 24).padding(.top, 12)
-        } else if !model.lastFailures.isEmpty {
-            FailureBanner(failures: model.lastFailures).padding(.horizontal, 24).padding(.top, 12)
+        } else {
+            if let deleted = model.lastDeleted {
+                DeletedBanner(result: deleted).padding(.horizontal, 24).padding(.top, 12)
+            }
+            if !model.lastFailures.isEmpty {
+                FailureBanner(failures: model.lastFailures).padding(.horizontal, 24).padding(.top, 12)
+            }
         }
     }
 

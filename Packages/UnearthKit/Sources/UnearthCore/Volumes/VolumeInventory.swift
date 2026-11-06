@@ -54,6 +54,26 @@ public struct VolumeInventory: Sendable, Equatable {
         container.volumes.first { $0.roles.contains(role) }
     }
 
+    /// The smallest change the free-space meter can show: it counts hundredths of a gigabyte.
+    static let smallestVisibleChange: Int64 = 10_000_000
+
+    /// This disk with `now` bytes available, or nil if that's too small a change to show. Only what's free moves:
+    /// what each volume uses stays as it was loaded, until the next `load`.
+    public func refreshed(available now: Int64) -> VolumeInventory? {
+        let change = now - available
+        guard abs(change) >= Self.smallestVisibleChange else { return nil }
+        let free = min(container.capacity, max(0, container.free + change))
+        return VolumeInventory(
+            container: APFSContainer(reference: container.reference, capacity: container.capacity, free: free, volumes: container.volumes),
+            available: now, availableForImportantUsage: availableForImportantUsage + change)
+    }
+
+    /// What's available on the volume holding `path`. Unlike `load`, this costs next to nothing.
+    public static func availableCapacity(at path: String = "/") -> Int64? {
+        let values = try? URL(fileURLWithPath: path).resourceValues(forKeys: [.volumeAvailableCapacityKey])
+        return values?.volumeAvailableCapacity.map(Int64.init)
+    }
+
     public static func parseContainers(_ plist: Data) throws -> [APFSContainer] {
         let root = try PropertyListSerialization.propertyList(from: plist, format: nil) as? [String: Any]
         guard let containers = root?["Containers"] as? [[String: Any]] else {

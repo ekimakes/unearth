@@ -149,11 +149,12 @@ public actor CleanupEngine {
         return failures
     }
 
-    public func deletePermanently(_ ids: [UUID]) async -> [CleanupFailure] {
+    public func deletePermanently(_ ids: [UUID], progress: @Sendable (Int) -> Void = { _ in }) async -> [CleanupFailure] {
         var failures: [CleanupFailure] = []
         var states: [UUID: HistoryEntry.State] = [:]
         let entries = await history.entries(ids)
-        for id in ids {
+        for (done, id) in ids.enumerated() {
+            defer { progress(done + 1) }
             guard let entry = entries[id], entry.kind == .trashed, entry.state == .inTrash,
                   let trashPath = entry.trashPath else {
                 failures.append(CleanupFailure(title: "", path: nil, reason: "Only items Unearth moved to the Trash can be deleted here."))
