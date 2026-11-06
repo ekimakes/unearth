@@ -36,6 +36,11 @@ enum DebugSnapshots {
             NSApp.terminate(nil)
             return
         }
+        if model.options.backCheck {
+            await checkBack(model, directory: directory)
+            NSApp.terminate(nil)
+            return
+        }
         if model.options.freeSpaceCheck {
             await checkFreeSpace(model, directory: directory)
             NSApp.terminate(nil)
@@ -497,6 +502,134 @@ enum DebugSnapshots {
             note("real Trash: went to \(trashed.deletingLastPathComponent().lastPathComponent) and came back")
         } catch {
             note("real Trash: \(error.localizedDescription)")
+        }
+    }
+
+    /// Goes into folders and tiles and comes back out with real clicks and ⌘[, in the real window. Moves nothing.
+    private static func checkBack(_ model: AppModel, directory: String) async {
+        var report = ""
+        func note(_ line: String) {
+            report += line + "\n"
+            try? report.write(toFile: Paths.join(directory, "back-check.txt"), atomically: true, encoding: .utf8)
+        }
+        func expect(_ name: String, _ right: Bool, _ detail: Any = "") { note("\(right ? "right" : "WRONG"): \(name) \(detail)") }
+        func wait(_ limit: Duration = .seconds(30), _ done: () -> Bool) async {
+            let end = ContinuousClock.now + limit
+            while !done(), ContinuousClock.now < end { try? await Task.sleep(for: .milliseconds(50)) }
+        }
+        func picture(_ name: String) {
+            guard let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeKey }), let view = window.contentView,
+                  let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
+            view.cacheDisplay(in: view.bounds, to: bitmap)
+            try? bitmap.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: Paths.join(directory, name + ".png")))
+        }
+        await wait(.seconds(120)) { model.tree != nil && !model.isScanning && !model.library.isIndexing && model.library.status != .idle }
+        guard let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeKey }), let content = window.contentView,
+              let place = model.places.first(where: { $0.hasSuffix("/Downloads") }) else {
+            note("Couldn't reach the window or the Downloads place.")
+            return
+        }
+        window.makeKey()
+        NSApp.activate()
+        try? await Task.sleep(for: .seconds(1))
+
+        func click(_ point: CGPoint) async {
+            let location = NSPoint(x: point.x, y: content.frame.height - point.y)
+            func event(_ type: NSEvent.EventType) -> NSEvent? {
+                NSEvent.mouseEvent(with: type, location: location, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                   windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)
+            }
+            // The release goes in the queue first: the press can start a loop that waits for it.
+            if let up = event(.leftMouseUp) { NSApp.postEvent(up, atStart: false) }
+            if let down = event(.leftMouseDown) { window.sendEvent(down) }
+            try? await Task.sleep(for: .milliseconds(600))
+        }
+        func clickBack() async {
+            guard let frame = TimelineProbe.backButton else { return note("WRONG: no Back button to click") }
+            await click(CGPoint(x: frame.midX, y: frame.midY))
+        }
+        func pressCommandBracket() async {
+            if let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: ProcessInfo.processInfo.systemUptime,
+                                            windowNumber: window.windowNumber, context: nil, characters: "[", charactersIgnoringModifiers: "[",
+                                            isARepeat: false, keyCode: 33) {
+                _ = window.performKeyEquivalent(with: event)
+            }
+            try? await Task.sleep(for: .milliseconds(600))
+        }
+
+        // Places: a folder two levels down.
+        model.sidebarSelection = .place(place)
+        await wait { TimelineProbe.setPlacesFolder != nil && TimelineProbe.placesFolder?() == place }
+        try? await Task.sleep(for: .seconds(1))
+        expect("no Back at the top of Downloads", TimelineProbe.backButton == nil)
+        let cars = Paths.join(place, "Cars"), deep = Paths.join(cars, "2024")
+        TimelineProbe.setPlacesFolder?(deep)
+        await wait(.seconds(3)) { TimelineProbe.backButton != nil }
+        try? await Task.sleep(for: .milliseconds(500))
+        expect("Back appears inside a folder", TimelineProbe.backButton != nil, TimelineProbe.backButton ?? .zero)
+        picture("back-1-folder")
+        await clickBack()
+        expect("a click goes up one folder", TimelineProbe.placesFolder?() == cars, TimelineProbe.placesFolder?().suffix(20) ?? "")
+        await pressCommandBracket()
+        expect("⌘[ goes up one more", TimelineProbe.placesFolder?() == place, TimelineProbe.placesFolder?().suffix(20) ?? "")
+        try? await Task.sleep(for: .milliseconds(300))
+        expect("no Back back at the top", TimelineProbe.backButton == nil)
+
+        // A browse screen: a folder tile well down the overview.
+        model.sidebarSelection = .kind(.image)
+        await wait { TimelineProbe.setZoom != nil && TimelineProbe.zoom != nil }
+        try? await Task.sleep(for: .seconds(1))
+        TimelineProbe.setZoom?(.overview)
+        await wait { TimelineProbe.tiles.count >= 3 && TimelineProbe.overviewTimeline != nil }
+        try? await Task.sleep(for: .seconds(1))
+        expect("no Back on the overview itself", TimelineProbe.backButton == nil, "\(TimelineProbe.overviewTimeline?.sections.count ?? 0) tiles")
+        func scrollViews(in view: NSView) -> [NSScrollView] {
+            (view as? NSScrollView).map { [$0] } ?? view.subviews.flatMap(scrollViews)
+        }
+        if let scroller = scrollViews(in: content).max(by: { ($0.documentView?.frame.height ?? 0) < ($1.documentView?.frame.height ?? 0) }) {
+            scroller.contentView.scroll(to: NSPoint(x: 0, y: 1100))
+            scroller.reflectScrolledClipView(scroller.contentView)
+        }
+        try? await Task.sleep(for: .seconds(1))
+        let top = content.frame.height
+        let visible = TimelineProbe.tiles.filter { $0.value.midY > 200 && $0.value.midY < top - 80 }
+        guard let opened = visible.max(by: { $0.key < $1.key }) else { return note("WRONG: no tile in view after scrolling") }
+        note("opening tile \(opened.key), at y \(Int(opened.value.midY))")
+        await click(CGPoint(x: opened.value.midX, y: opened.value.midY))
+        await wait(.seconds(3)) { TimelineProbe.zoom?() == .all }
+        try? await Task.sleep(for: .milliseconds(500))
+        expect("a tile opens every file", TimelineProbe.zoom?() == .all, TimelineProbe.zoom?() ?? .all)
+        expect("Back appears", TimelineProbe.backButton != nil, TimelineProbe.backButton ?? .zero)
+        picture("back-2-tile")
+        TimelineProbe.tiles = [:]
+        await clickBack()
+        await wait(.seconds(3)) { TimelineProbe.zoom?() == .overview }
+        try? await Task.sleep(for: .seconds(1))
+        expect("a click goes back to the tiles", TimelineProbe.zoom?() == .overview, TimelineProbe.zoom?() ?? .all)
+        let again = TimelineProbe.tiles[opened.key]
+        expect("it lands on the tile it came from", again.map { $0.midY > 0 && $0.midY < top } ?? false, again.map { "at y \(Int($0.midY))" } ?? "not on screen")
+        expect("Back is gone", TimelineProbe.backButton == nil)
+        picture("back-3-tiles-again")
+
+        // The Disk Map.
+        model.diskMapFocus = "/Users/demo/Downloads/Cars"
+        model.sidebarSelection = .diskMap
+        await wait { TimelineProbe.diskMapFolder?() == "Cars" }
+        try? await Task.sleep(for: .seconds(1))
+        expect("the Disk Map opens on the folder", TimelineProbe.diskMapFolder?() == "Cars", TimelineProbe.diskMapFolder?() ?? "")
+        await pressCommandBracket()
+        expect("⌘[ goes up one folder", TimelineProbe.diskMapFolder?() == "Downloads", TimelineProbe.diskMapFolder?() ?? "")
+        try? await Task.sleep(for: .seconds(1))
+        await pressCommandBracket()
+        expect("⌘[ goes up one more", TimelineProbe.diskMapFolder?() == "demo", TimelineProbe.diskMapFolder?() ?? "")
+        await clickBack()
+        expect("a click goes up one more", TimelineProbe.diskMapFolder?() == "Users", TimelineProbe.diskMapFolder?() ?? "")
+        // The window's own picture leaves this screen blank, so it's drawn apart from the window.
+        if let tree = model.tree, let folder = tree.nodeID(forPath: "/Users/demo/Downloads/Cars") {
+            var state = DiskMapState()
+            state.focus(on: folder, in: tree)
+            render(DiskMapContent(tree: tree, state: .constant(state)), model: model, scheme: .dark, height: 560,
+                   to: URL(fileURLWithPath: Paths.join(directory, "back-4-disk-map.png")))
         }
     }
 
@@ -1240,6 +1373,11 @@ enum TimelineProbe {
     static var zoom: (() -> TimelineZoom)?
     /// The folder tiles on screen, by position, in the window.
     static var tiles: [Int: CGRect] = [:]
+    /// The Back button on screen, in the window.
+    static var backButton: CGRect?
+    static var placesFolder: (() -> String)?
+    static var setPlacesFolder: ((String) -> Void)?
+    static var diskMapFolder: (() -> String)?
     static var overviewTimeline: Timeline?
     static var overviewSelection: (() -> Set<Int64>)?
     static var clearOverviewSelection: (() -> Void)?

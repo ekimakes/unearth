@@ -14,6 +14,12 @@ public enum Paths {
         return zip(pathParts, ancestorParts).allSatisfy { $0 == $1 }
     }
 
+    /// The folder above `path`, or nil if `path` is `root` or isn't inside it.
+    public static func parent(of path: String, within root: String) -> String? {
+        guard isSameOrInside(path, root), !isSameOrInside(root, path) else { return nil }
+        return (path as NSString).deletingLastPathComponent
+    }
+
     static func comparableComponents(_ path: String) -> [String] {
         path.split(separator: "/").map { String($0).precomposedStringWithCanonicalMapping.lowercased() }
     }

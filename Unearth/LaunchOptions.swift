@@ -33,6 +33,8 @@ struct LaunchOptions {
     /// With a snapshot directory: delete things for good and change the disk behind the app's back, time how soon the
     /// free-space meter follows, and quit. Refused unless the sample disk is on a volume of its own.
     var freeSpaceCheck = false
+    /// With a snapshot directory: go into folders and tiles, come back out with real clicks and ⌘[, and quit.
+    var backCheck = false
     /// After each scan, write its numbers here as JSON (for checking a real-disk run).
     var reportFile: String?
 
@@ -55,6 +57,7 @@ struct LaunchOptions {
         options.overviewCheck = flag("UnearthOverviewCheck")
         options.removalCheck = flag("UnearthRemovalCheck")
         options.freeSpaceCheck = flag("UnearthFreeSpaceCheck")
+        options.backCheck = flag("UnearthBackCheck")
         options.reportFile = text("UnearthReportFile")
         #endif
         return options

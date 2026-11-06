@@ -19,6 +19,16 @@ enum TimelineZoom: Hashable {
         default: self
         }
     }
+
+    /// What the switch and the Back button call this zoom.
+    func title(for grouping: FileGrouping) -> String {
+        switch self {
+        case .years: "Years"
+        case .months: "Months"
+        case .overview: grouping == .folder ? "Folders" : "Sources"
+        case .all: "All"
+        }
+    }
 }
 
 /// The switch between the zooms a grouping has, with how many of each.
@@ -29,10 +39,10 @@ struct TimelineZoomPills: View {
 
     var body: some View {
         let tabs: [(tab: TimelineZoom, title: String, count: Int)] = if grouping == .date {
-            [(.years, "Years", timeline.years.count), (.months, "Months", timeline.years.reduce(0) { $0 + $1.months.count }),
-             (.all, "All", timeline.count)]
+            [(.years, timeline.years.count), (.months, timeline.years.reduce(0) { $0 + $1.months.count }), (.all, timeline.count)]
+                .map { ($0, $0.title(for: grouping), $1) }
         } else {
-            [(.overview, grouping == .folder ? "Folders" : "Sources", timeline.sections.count), (.all, "All", timeline.count)]
+            [(.overview, timeline.sections.count), (.all, timeline.count)].map { ($0, $0.title(for: grouping), $1) }
         }
         TabPills(selection: $zoom, tabs: tabs)
     }
@@ -48,35 +58,54 @@ struct TimelineScreen: View {
     let grouping: FileGrouping
     @Binding var selection: Set<Int64>
     @Binding var trashing: [IndexedFile]
+    /// The tiles opened to get here, for the screen's Back button.
+    @Binding var trail: BackTrail<TimelineZoom>
     var onOpenFolder: (IndexedFile) -> Void = { _ in }
     @State private var monthsYear: Int?
     @State private var jump: FileSection.Key?
+    /// The folder or source opened last: coming back lands on its tile.
+    @State private var openedTile: FileSection.ID?
 
     var body: some View {
+        screen.onChange(of: zoom) { trail.arrived(at: zoom) }
+    }
+
+    @ViewBuilder private var screen: some View {
         switch zoom.fitted(to: grouping) {
         case .overview:
-            ScrollView {
-                TimelineOverviewContent(timeline: timeline, kind: kind, selection: $selection) { section in
-                    jump = section.key
-                    zoom = .all
+            ScrollViewReader { proxy in
+                ScrollView {
+                    TimelineOverviewContent(timeline: timeline, kind: kind, selection: $selection) { section in
+                        openedTile = section.id
+                        jump = section.key
+                        open(.all)
+                    }
+                }
+                .onAppear {
+                    if let openedTile { proxy.scrollTo(openedTile, anchor: .center) }
                 }
             }
         case .years:
             ScrollView {
                 TimelineYearsContent(timeline: timeline, kind: kind) { year in
                     monthsYear = year.year
-                    zoom = .months
+                    open(.months)
                 }
             }
         case .months:
             TimelineMonths(timeline: timeline, kind: kind, year: monthsYear) { month in
                 jump = month.key
-                zoom = .all
+                open(.all)
             }
         case .all:
             TimelineGrid(timeline: timeline, style: style, kind: kind, showsRail: grouping == .date, selection: $selection,
                          trashing: $trashing, jump: $jump, onOpenFolder: onOpenFolder)
         }
+    }
+
+    private func open(_ next: TimelineZoom) {
+        trail.entered(from: zoom.fitted(to: grouping))
+        zoom = next
     }
 }
 

@@ -49,7 +49,10 @@ struct DiskMapContent: View {
     var body: some View {
         let node = tree.node(current)
         VStack(alignment: .leading, spacing: 18) {
-            breadcrumb
+            HStack(spacing: 16) {
+                if let parent = node.parent { BackButton(destination: displayName(parent), action: goBack) }
+                breadcrumb
+            }
             HStack(alignment: .top, spacing: 28) {
                 SunburstView(segments: currentSegments, focusName: displayName(current), focusBytes: node.totalBytes,
                              hovered: $hovered) { segment in
@@ -64,6 +67,9 @@ struct DiskMapContent: View {
         .onChange(of: key, initial: true) {
             segments = SunburstView.segments(tree: tree, focus: current)
             segmentsKey = key
+            #if DEBUG
+            registerForChecks()
+            #endif
         }
         .onChange(of: tree.id) { hovered = nil }
         .alert("Move \(state.trashPath.map { ($0 as NSString).lastPathComponent } ?? "this folder") to the Trash?",
@@ -79,6 +85,11 @@ struct DiskMapContent: View {
         } message: {
             Text("You picked this yourself, so Unearth can't tell whether you'll need it. You can put it back until you empty the Trash.")
         }
+    }
+
+    /// Looked up when it's pressed: the keyboard shortcut can hold on to an action from before the last move.
+    private func goBack() {
+        if let parent = tree.node(current).parent { state.focus(on: parent, in: tree) }
     }
 
     /// Cached per scan and focus so hovering doesn't rebuild the rings.
@@ -104,6 +115,12 @@ struct DiskMapContent: View {
         }
         .font(.title3)
     }
+
+    #if DEBUG
+    private func registerForChecks() {
+        TimelineProbe.diskMapFolder = { [tree, state = $state] in tree.node(state.wrappedValue.focus(in: tree)).name }
+    }
+    #endif
 
     private func folderList(_ node: ScanNode) -> some View {
         let total = Double(max(1, node.totalBytes))

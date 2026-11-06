@@ -13,6 +13,10 @@ struct PlacesView: View {
     @State private var sort: FileSort = .name
     @State private var timeline = Timeline()
     @State private var zoom = TimelineZoom.all
+    /// The tiles opened in this folder's timeline.
+    @State private var trail = BackTrail<TimelineZoom>()
+    /// The folder Back just came out of, to land on it.
+    @State private var leftFolder: String?
     /// What Group by was set to; until then, the folder's size decides.
     @State private var chosenGrouping: FileGrouping?
     /// The folder the timeline holds: listing it again keeps the place, a new one starts at the top.
@@ -33,10 +37,26 @@ struct PlacesView: View {
 
     private var grouping: FileGrouping { chosenGrouping ?? listing.fittingGrouping }
 
+    /// Where Back goes: out of a year or a month first, then up a folder. Nothing at the top of the place.
+    private var backDestination: String? {
+        if let step = trail.last { return step.title(for: .date) }
+        return Paths.parent(of: folder, within: root).map { $0 == root ? SidebarItem.place(root).title : ($0 as NSString).lastPathComponent }
+    }
+
+    private func goBack() {
+        if let step = trail.back() {
+            zoom = step
+        } else if let parent = Paths.parent(of: folder, within: root) {
+            leftFolder = folder
+            folder = parent
+        }
+    }
+
     var body: some View {
         let grouping = grouping
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 16) {
+                if let backDestination { BackButton(destination: backDestination, action: goBack) }
                 PlacesBreadcrumb(root: root, folder: $folder)
                 Spacer(minLength: 0)
                 if grouping == .date, !timeline.sections.isEmpty {
@@ -52,10 +72,13 @@ struct PlacesView: View {
                         PlacesContent(folder: $folder, listing: listing, selection: $selection, trashing: $trashing, layout: layout,
                                       onCursor: { proxy.scrollTo($0) })
                     }
+                    .onChange(of: listing) {
+                        if let left = listing.entries.first(where: { $0.path == leftFolder }) { proxy.scrollTo(left.id, anchor: .center) }
+                    }
                 }
             } else {
                 TimelineScreen(timeline: timeline, zoom: $zoom, style: listing.style(layout: layout), kind: nil, grouping: .date,
-                               selection: $selection, trashing: $trashing, onOpenFolder: { folder = $0.path })
+                               selection: $selection, trashing: $trashing, trail: $trail, onOpenFolder: { folder = $0.path })
                     .id(folder)
             }
         }
@@ -85,7 +108,16 @@ struct PlacesView: View {
             listedFolder = folder
             await timeline.load(.files(sections, folders: listed.folders), keepingPages: sameFolder)
         }
-        .onChange(of: folder) { selection = [] }
+        .onChange(of: folder) {
+            selection = []
+            trail = BackTrail()
+        }
+        #if DEBUG
+        .onAppear {
+            TimelineProbe.placesFolder = { folder }
+            TimelineProbe.setPlacesFolder = { folder = $0 }
+        }
+        #endif
     }
 }
 

@@ -104,6 +104,7 @@ struct BrowseView: View {
     @State private var trashing: [IndexedFile] = []
     @State private var timeline = Timeline()
     @State private var zoom = TimelineZoom.all
+    @State private var trail = BackTrail<TimelineZoom>()
     @AppStorage private var sort: FileSort
     @AppStorage("browseLayout") private var layout: FileLayout = .grid
     /// What Group by was set to. Until it is, the files' own spread decides.
@@ -133,7 +134,8 @@ struct BrowseView: View {
     var body: some View {
         let grouping = shownGrouping
         VStack(alignment: .leading, spacing: 0) {
-            BrowseBar(scope: scope, filters: $filters, zoom: $zoom, grouping: grouping, timeline: grouping == .none ? nil : timeline)
+            BrowseBar(scope: scope, filters: $filters, zoom: $zoom, trail: $trail, grouping: grouping,
+                      timeline: grouping == .none ? nil : timeline)
             if grouping == .none {
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -146,7 +148,8 @@ struct BrowseView: View {
                 Spacer(minLength: 0)
             } else {
                 TimelineScreen(timeline: timeline, zoom: $zoom, style: filters.style(for: scope, layout: layout),
-                               kind: filters.kind(for: scope), grouping: grouping, selection: $selection, trashing: $trashing)
+                               kind: filters.kind(for: scope), grouping: grouping, selection: $selection, trashing: $trashing,
+                               trail: $trail)
             }
         }
         .background(Color.canvas)
@@ -196,7 +199,10 @@ struct BrowseView: View {
         guard grouping == .none else {
             await timeline.load(.library(model.library, query: query, grouping: grouping, sort: sort),
                                 keepingPages: keepingWhatsShown)
-            if !keepingWhatsShown { zoom = TimelineZoom.opening(grouping, count: timeline.count) }
+            if !keepingWhatsShown {
+                zoom = TimelineZoom.opening(grouping, count: timeline.count)
+                trail = BackTrail()
+            }
             #if DEBUG
             if !keepingWhatsShown, TimelineProbe.opensEveryFile {
                 TimelineProbe.opened = (grouping, zoom)
@@ -287,6 +293,7 @@ struct BrowseBar: View {
     let scope: BrowseScope
     @Binding var filters: BrowseFilters
     var zoom: Binding<TimelineZoom>?
+    var trail: Binding<BackTrail<TimelineZoom>>?
     var grouping = FileGrouping.none
     var timeline: Timeline?
 
@@ -294,6 +301,11 @@ struct BrowseBar: View {
         VStack(alignment: .leading, spacing: 14) {
             if let summary { Text(summary).font(.title3).monospacedDigit().foregroundStyle(Color.secondaryInk) }
             HStack(spacing: 16) {
+                if let zoom, let trail, let step = trail.wrappedValue.last {
+                    BackButton(destination: step.title(for: grouping)) {
+                        if let step = trail.wrappedValue.back() { zoom.wrappedValue = step }
+                    }
+                }
                 FilterChips(filters: $filters, showsKinds: scope.showsKindFilter)
                 Spacer(minLength: 0)
                 if let zoom, let timeline, !timeline.sections.isEmpty {
